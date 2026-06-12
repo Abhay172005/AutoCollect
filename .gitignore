@@ -1,0 +1,12 @@
+# Root gitignore
+.env
+.env.*
+node_modules/
+.DS_Store
+
+# Ignore specific environment files in subdirectories just in case
+client/.env
+server/.env
+client/node_modules/
+server/node_modules/
+server/uploads/
