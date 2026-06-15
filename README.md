@@ -24,8 +24,11 @@ Copy `.env` in the root and update if needed:
 ```
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/autocollect
-JWT_SECRET=autocollect_jwt_secret_key_2024_prod
+JWT_SECRET=your_jwt_secret_here
 JWT_EXPIRE=7d
+TWILIO_ACCOUNT_SID=your_twilio_sid
+TWILIO_AUTH_TOKEN=your_twilio_token
+TWILIO_PHONE_NUMBER=your_twilio_number
 ```
 
 ### 2. Install Dependencies
@@ -40,20 +43,7 @@ cd ../client
 npm install
 ```
 
-### 3. Seed Database
-
-```bash
-cd server
-npm run seed
-```
-
-This creates:
-- Admin user: `admin@autocollect.com` / `admin123`
-- Default settings (business name, reminder template)
-- 10 sample parties
-- 15 sample bills with various statuses
-
-### 4. Run Application
+### 3. Run Application
 
 ```bash
 # Terminal 1 - Start backend
@@ -70,44 +60,30 @@ npm run dev
 
 ## Features
 
-### Core Features
-- **PDF Upload & Parsing**: Upload Pending Bills PDFs from accounting software
-- **Weekly Comparison Engine**: Detects Paid, Partially Paid, and Pending invoices
-- **Auto Due Date Calculation**: Bill Date + Credit Days
-- **Status Tracking**: Upcoming, Due Today, Overdue, Paid, Partially Paid
+### Enterprise SaaS Architecture
+- **Multi-Tenant System**: Fully isolated data per merchant (`merchantId`), allowing multiple businesses to use the platform securely.
+- **JWT Authentication**: Secure registration, login, and protected routes.
 
-### Dashboard
-- 7 stat cards with real-time aggregations
-- Outstanding Amount by Customer (Bar chart)
-- Collection Status (Donut chart)
-- Overdue Bills Trend (Area chart)
-- Recent Activities feed
-- Dashboard Notifications
+### Premium UI/UX
+- **Linear/Vercel Inspired Design**: Ultra-sleek dark mode (deep true black), subtle glassmorphism, and highly polished typography.
+- **Dynamic Theming**: Seamless native light/dark mode toggles across all screens including the landing, login, and dashboard pages.
+- **Animated Data States**: Beautiful extraction loading states and 3-step onboarding empty states.
+- **Responsive Tables**: Sticky headers with backdrop blur for managing thousands of rows flawlessly.
 
-### Party Management
-- CRUD operations with card grid view
-- Missing phone number detection
-- City filter and search
-- Auto-creation from PDF imports
+### Core Receivables Automation
+- **Smart PDF/Excel Upload**: Upload pending bills from Tally, Busy, or Marg. 
+- **Auto-Matching & Extraction**: Intelligently extracts Bill Numbers, Party Names, and Amounts to match to existing customers.
+- **Weekly Comparison Engine**: Detects Paid, Partially Paid, and Pending invoices automatically on new uploads.
 
-### Reminder System
-- Preview reminder messages before sending
-- Bulk reminder sending
-- WhatsApp/SMS simulation (MVP)
-- Complete reminder history with logs
+### Dashboard & Analytics
+- **Highlight Metrics**: Prominent pulsing alerts for "Overdue" and "Due Today" invoices.
+- **Quick Actions**: Direct 1-click access to add parties or upload new ERP data.
+- **Visual Insights**: Outstanding Amount by Customer (Bar), Collection Status (Donut), Overdue Trend (Area).
 
-### Reports
-- 5 report types: Pending, Overdue, Paid, Partial, Reminders
-- CSV export
-- Summary statistics
-
-### Additional
-- Global search (parties, bills, phone)
-- Dark/Light mode toggle
-- Fully responsive design
-- Toast notifications
-- Loading skeletons
-- JWT authentication
+### Twilio Reminders Integration
+- **Real WhatsApp/SMS**: Configured to use the Twilio API to fire off professional payment reminders.
+- **One-Click Send**: Trigger reminders for all overdue bills instantly.
+- **Reminder History**: Full log of all communication sent to parties.
 
 ## API Endpoints
 
