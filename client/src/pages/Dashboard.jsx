@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { dashboardService } from '../services/dataService';
+import { Link } from 'react-router-dom';
 import {
-  FileText, Clock, AlertTriangle, CreditCard, CheckCircle, IndianRupee, Bell, TrendingUp, Activity
+  FileText, Clock, AlertTriangle, CreditCard, CheckCircle, IndianRupee, Bell, TrendingUp, Activity, Users, UploadCloud, Rocket, ArrowRight
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend
 } from 'recharts';
+import Skeleton from '../components/ui/Skeleton';
 
 const statConfig = [
   { key: 'totalPending', label: 'Total Pending', icon: FileText, color: 'from-blue-500 to-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400' },
@@ -71,16 +73,16 @@ const Dashboard = () => {
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
           {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="stat-card animate-pulse">
-              <div className="skeleton-circle w-10 h-10 mb-3" />
-              <div className="skeleton-text w-16 h-6 mb-1" />
-              <div className="skeleton-text w-24 h-4" />
+            <div key={i} className="stat-card">
+              <Skeleton className="w-10 h-10 mb-3 rounded-xl" />
+              <Skeleton className="w-16 h-6 mb-1" />
+              <Skeleton className="w-24 h-4" />
             </div>
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="glass-card p-6 h-80 skeleton" />
-          <div className="glass-card p-6 h-80 skeleton" />
+          <Skeleton className="glass-card p-6 h-80" />
+          <Skeleton className="glass-card p-6 h-80" />
         </div>
       </div>
     );
@@ -88,26 +90,80 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of your receivables and collections</p>
+      {/* Page header & Quick Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of your receivables and collections</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link to="/parties" className="btn-secondary">
+            <Users className="w-4 h-4" /> Add Party
+          </Link>
+          <Link to="/upload" className="btn-primary">
+            <UploadCloud className="w-4 h-4" /> Upload ERP
+          </Link>
+        </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-        {statConfig.map(({ key, label, icon: Icon, color, bg, text, isCurrency }, i) => (
-          <div key={key} className="stat-card animate-slide-up" style={{ animationDelay: `${i * 50}ms` }}>
-            <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}>
-              <Icon className={`w-5 h-5 ${text}`} />
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
-              {isCurrency ? formatCurrency(stats?.[key]) : (stats?.[key] || 0)}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
+      {stats?.totalPending === 0 && activities.length === 0 ? (
+        <div className="glass-card p-8 md:p-12 text-center animate-fade-in mt-8">
+          <div className="w-20 h-20 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+            <Rocket className="w-10 h-10 text-primary-600 dark:text-primary-400" />
           </div>
-        ))}
-      </div>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">Welcome to AutoCollect!</h2>
+          <p className="text-gray-500 dark:text-gray-400 max-w-lg mx-auto mb-10 text-lg">
+            Let's get your automated receivables engine up and running in 3 simple steps.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto text-left">
+            <div className="p-6 rounded-2xl bg-white/50 dark:bg-dark-800/50 border border-gray-200 dark:border-dark-700 relative overflow-hidden group hover:border-primary-500/50 hover:shadow-lg transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform duration-500 group-hover:scale-110" />
+              <div className="w-10 h-10 rounded-xl bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center mb-5 text-primary-600 dark:text-primary-400 font-bold text-lg">1</div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Add Your Parties</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Import or add your client details so we know who to remind.</p>
+              <Link to="/parties" className="text-sm font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 flex items-center gap-1">Go to Parties <ArrowRight className="w-4 h-4"/></Link>
+            </div>
+            
+            <div className="p-6 rounded-2xl bg-white/50 dark:bg-dark-800/50 border border-gray-200 dark:border-dark-700 relative overflow-hidden group hover:border-emerald-500/50 hover:shadow-lg transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform duration-500 group-hover:scale-110" />
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mb-5 text-emerald-600 dark:text-emerald-400 font-bold text-lg">2</div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Upload ERP Data</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Export your outstanding report from Tally/Busy and drop it here.</p>
+              <Link to="/upload" className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center gap-1">Upload Report <ArrowRight className="w-4 h-4"/></Link>
+            </div>
+            
+            <div className="p-6 rounded-2xl bg-white/50 dark:bg-dark-800/50 border border-gray-200 dark:border-dark-700 relative overflow-hidden group hover:border-cyan-500/50 hover:shadow-lg transition-all duration-300">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-bl-full -mr-4 -mt-4 transition-transform duration-500 group-hover:scale-110" />
+              <div className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center mb-5 text-cyan-600 dark:text-cyan-400 font-bold text-lg">3</div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Send Reminders</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Review your matched invoices and blast WhatsApp reminders instantly.</p>
+              <Link to="/bills" className="text-sm font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 flex items-center gap-1">View Bills <ArrowRight className="w-4 h-4"/></Link>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Stat cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4 mt-6">
+            {statConfig.map(({ key, label, icon: Icon, color, bg, text, isCurrency }, i) => {
+              const val = stats?.[key] || 0;
+              const isHighlight = (key === 'overdue' || key === 'dueToday') && val > 0;
+              return (
+                <div key={key} className={`stat-card animate-slide-up ${isHighlight ? 'ring-2 ring-red-500/50 dark:ring-red-500/50 bg-red-50/50 dark:bg-red-900/10 scale-[1.02] shadow-lg' : ''}`} style={{ animationDelay: `${i * 50}ms` }}>
+                  {isHighlight && (
+                    <div className="absolute top-0 right-0 w-12 h-12 bg-red-500/10 rounded-bl-full -mr-2 -mt-2" />
+                  )}
+                  <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center mb-3`}>
+                    <Icon className={`w-5 h-5 ${text} ${isHighlight ? 'animate-pulse' : ''}`} />
+                  </div>
+                  <p className={`text-2xl font-bold tabular-nums ${isHighlight ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>
+                    {isCurrency ? formatCurrency(val) : val}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
+                </div>
+              );
+            })}
+          </div>
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -316,6 +372,8 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

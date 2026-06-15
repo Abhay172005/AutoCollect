@@ -17,7 +17,7 @@ exports.getBills = async (req, res) => {
       endDate
     } = req.query;
 
-    const query = {};
+    const query = { merchantId: req.user.id };
 
     // Search
     if (search) {
@@ -71,9 +71,10 @@ exports.createBill = async (req, res) => {
 
     const Party = require('../models/Party');
     // Auto-create party if it doesn't exist
-    let party = await Party.findOne({ partyName });
+    let party = await Party.findOne({ merchantId: req.user.id, partyName });
     if (!party) {
       party = await Party.create({
+        merchantId: req.user.id,
         partyName,
         city: city || '',
         phoneNumber: '+918769744939' // Hardcoded for POC demo
@@ -84,6 +85,7 @@ exports.createBill = async (req, res) => {
     }
 
     const bill = new Bill({
+      merchantId: req.user.id,
       partyName,
       billNumber,
       billDate,
@@ -109,7 +111,7 @@ exports.createBill = async (req, res) => {
 // @route   GET /api/bills/:id
 exports.getBill = async (req, res) => {
   try {
-    const bill = await Bill.findById(req.params.id);
+    const bill = await Bill.findOne({ _id: req.params.id, merchantId: req.user.id });
     if (!bill) {
       return res.status(404).json({ success: false, message: 'Bill not found' });
     }
@@ -123,7 +125,7 @@ exports.getBill = async (req, res) => {
 // @route   PATCH /api/bills/:id
 exports.updateBill = async (req, res) => {
   try {
-    const bill = await Bill.findById(req.params.id);
+    const bill = await Bill.findOne({ _id: req.params.id, merchantId: req.user.id });
     if (!bill) {
       return res.status(404).json({ success: false, message: 'Bill not found' });
     }
@@ -160,7 +162,7 @@ exports.recordPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide a valid payment amount' });
     }
 
-    const bill = await Bill.findById(req.params.id);
+    const bill = await Bill.findOne({ _id: req.params.id, merchantId: req.user.id });
     if (!bill) {
       return res.status(404).json({ success: false, message: 'Bill not found' });
     }
@@ -200,7 +202,7 @@ exports.recordPayment = async (req, res) => {
 exports.exportCSV = async (req, res) => {
   try {
     const { status, partyName, startDate, endDate } = req.query;
-    const query = {};
+    const query = { merchantId: req.user.id };
 
     if (status) query.status = status;
     if (partyName) query.partyName = { $regex: partyName, $options: 'i' };
@@ -242,7 +244,7 @@ exports.bulkDeleteBills = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide an array of bill IDs to delete' });
     }
 
-    const result = await Bill.deleteMany({ _id: { $in: ids } });
+    const result = await Bill.deleteMany({ _id: { $in: ids }, merchantId: req.user.id });
     res.json({ success: true, message: `${result.deletedCount} bills deleted successfully` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

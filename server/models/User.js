@@ -2,6 +2,21 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Name is required'],
+    trim: true
+  },
+  businessName: {
+    type: String,
+    required: [true, 'Business Name is required'],
+    trim: true
+  },
+  mobile: {
+    type: String,
+    required: [true, 'Mobile number is required'],
+    trim: true
+  },
   email: {
     type: String,
     required: [true, 'Email is required'],

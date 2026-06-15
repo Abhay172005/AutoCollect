@@ -13,9 +13,7 @@ const parsePendingBillsPdf = async (filePath) => {
     const pdfData = await pdfParse(dataBuffer);
     const text = pdfData.text;
 
-    console.log('--- RAW PDF TEXT (FIRST 1000 CHARS) ---');
-    console.log(text.substring(0, 1000));
-    console.log('---------------------------------------');
+
 
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const bills = [];

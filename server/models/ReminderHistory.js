@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const reminderHistorySchema = new mongoose.Schema({
+  merchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
   billId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Bill'
@@ -44,7 +50,7 @@ const reminderHistorySchema = new mongoose.Schema({
   timestamps: true
 });
 
-reminderHistorySchema.index({ partyName: 'text', billNumber: 'text' });
-reminderHistorySchema.index({ sentAt: -1 });
+reminderHistorySchema.index({ merchantId: 1, partyName: 'text', billNumber: 'text' });
+reminderHistorySchema.index({ merchantId: 1, sentAt: -1 });
 
 module.exports = mongoose.model('ReminderHistory', reminderHistorySchema);

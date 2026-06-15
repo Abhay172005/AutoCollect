@@ -85,6 +85,7 @@ exports.uploadPdfConfirm = async (req, res) => {
 
     // Create pending UploadHistory
     const uploadHistory = new UploadHistory({
+      merchantId: req.user.id,
       fileName: fileName || 'Unknown PDF',
       totalRows: stats?.totalRows || extractedBills.length,
       validRows: stats?.validRows || extractedBills.length,
@@ -97,10 +98,10 @@ exports.uploadPdfConfirm = async (req, res) => {
     const uploadBatch = uploadHistory._id.toString();
 
     // Sync parties (auto-create if not existing)
-    const partySync = await syncParties(extractedBills);
+    const partySync = await syncParties(extractedBills, req.user.id);
 
     // Compare with existing bills
-    const comparison = await compareBills(extractedBills, uploadBatch);
+    const comparison = await compareBills(extractedBills, uploadBatch, req.user.id);
     
     // Update UploadHistory status
     uploadHistory.status = 'Imported';
@@ -130,8 +131,8 @@ exports.uploadManual = async (req, res) => {
     }
 
     const uploadBatch = `manual-${Date.now()}`;
-    const partySync = await syncParties(bills);
-    const comparison = await compareBills(bills, uploadBatch);
+    const partySync = await syncParties(bills, req.user.id);
+    const comparison = await compareBills(bills, uploadBatch, req.user.id);
 
     res.json({
       success: true,

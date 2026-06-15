@@ -68,7 +68,7 @@ const Navbar = ({ onMenuClick }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/80 dark:bg-dark-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-dark-700">
+    <header className="sticky top-4 z-30 mx-4 lg:mx-8 mb-6 bg-white/80 dark:bg-dark-900/80 backdrop-blur-2xl border border-gray-200 dark:border-dark-700/50 rounded-2xl shadow-sm">
       <div className="flex items-center justify-between px-4 lg:px-6 h-16">
         {/* Left: menu + search */}
         <div className="flex items-center gap-4 flex-1">

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Settings = require('../models/Settings');
 const jwt = require('jsonwebtoken');
 
 const generateToken = (id) => {
@@ -32,6 +33,8 @@ exports.login = async (req, res) => {
       token,
       user: {
         id: user._id,
+        name: user.name,
+        businessName: user.businessName,
         email: user.email,
         role: user.role
       }
@@ -52,22 +55,62 @@ exports.getMe = async (req, res) => {
   }
 };
 
-// @desc    Seed admin user
-// @route   POST /api/auth/seed
-exports.seedAdmin = async (req, res) => {
+// @desc    Register a new merchant
+// @route   POST /api/auth/register
+exports.register = async (req, res) => {
   try {
-    const existing = await User.findOne({ email: 'admin@autocollect.com' });
-    if (existing) {
-      return res.json({ success: true, message: 'Admin already exists' });
+    const { name, businessName, email, mobile, password } = req.body;
+
+    if (!name || !businessName || !email || !mobile || !password) {
+      return res.status(400).json({ success: false, message: 'Please provide all required fields' });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Email already registered' });
     }
 
     const user = await User.create({
-      email: 'admin@autocollect.com',
-      password: 'admin123',
-      role: 'admin'
+      name,
+      businessName,
+      email,
+      mobile,
+      password,
+      role: 'admin' // By default merchants are admin of their tenant
     });
 
-    res.status(201).json({ success: true, message: 'Admin user created', email: user.email });
+    // Auto-create settings for this new merchant
+    await Settings.create({
+      merchantId: user._id,
+      merchantName: name,
+      businessName: businessName,
+      adminEmail: email
+    });
+
+    const token = generateToken(user._id);
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        businessName: user.businessName,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Forgot password placeholder
+// @route   POST /api/auth/forgot-password
+exports.forgotPassword = async (req, res) => {
+  try {
+    // Placeholder implementation
+    res.json({ success: true, message: 'Password reset link sent to your email (Placeholder)' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

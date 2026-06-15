@@ -1,9 +1,13 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import PageTransition from './components/layout/PageTransition';
+import Skeleton from './components/ui/Skeleton';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import UploadHistory from './pages/UploadHistory';
@@ -35,18 +39,28 @@ const ProtectedRoute = ({ children }) => {
 const AppRoutes = () => {
   const { isAuthenticated, loading } = useAuth();
 
+  const location = useLocation();
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-dark-950">
-        <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen p-6 max-w-7xl mx-auto space-y-6">
+        <div className="flex gap-4">
+          <Skeleton className="h-32 w-1/4" />
+          <Skeleton className="h-32 w-1/4" />
+          <Skeleton className="h-32 w-1/4" />
+          <Skeleton className="h-32 w-1/4" />
+        </div>
+        <Skeleton className="h-96 w-full" />
       </div>
     );
   }
 
   return (
-    <Routes>
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/signup" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Signup />} />
       <Route
         element={
           <ProtectedRoute>
@@ -65,7 +79,8 @@ const AppRoutes = () => {
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </AnimatePresence>
   );
 };
 

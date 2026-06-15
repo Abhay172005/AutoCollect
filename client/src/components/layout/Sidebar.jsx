@@ -40,9 +40,9 @@ const Sidebar = ({ isOpen, onClose }) => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-72 bg-white/90 dark:bg-dark-900/95 backdrop-blur-2xl border-r border-gray-200/50 dark:border-dark-700/50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } flex flex-col`}
+        className={`fixed top-4 bottom-4 left-4 z-50 w-64 bg-white/80 dark:bg-dark-900/80 backdrop-blur-3xl border border-gray-200/60 dark:border-dark-700/60 rounded-3xl shadow-2xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-[120%]'
+        } flex flex-col overflow-hidden`}
       >
         {/* Logo */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-dark-800">
@@ -86,8 +86,8 @@ const Sidebar = ({ isOpen, onClose }) => {
               {initials}
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{user?.name || 'Admin'}</p>
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{user?.email || 'admin@autocollect.com'}</p>
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{user?.businessName || user?.name}</p>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{user?.email}</p>
             </div>
           </div>
           <button

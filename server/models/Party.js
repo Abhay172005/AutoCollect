@@ -1,10 +1,15 @@
 const mongoose = require('mongoose');
 
 const partySchema = new mongoose.Schema({
+  merchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
   partyName: {
     type: String,
     required: [true, 'Party name is required'],
-    unique: true,
     trim: true
   },
   phoneNumber: {
@@ -38,7 +43,8 @@ partySchema.virtual('hasPhoneNumber').get(function () {
   return !!this.phoneNumber && this.phoneNumber.length > 0;
 });
 
-// Index for search
-partySchema.index({ partyName: 'text', city: 'text' });
+// Index for search and multi-tenancy
+partySchema.index({ merchantId: 1, partyName: 'text', city: 'text' });
+partySchema.index({ merchantId: 1, partyName: 1 }, { unique: true });
 
 module.exports = mongoose.model('Party', partySchema);

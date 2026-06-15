@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { uploadService } from '../services/dataService';
-import { Upload as UploadIcon, FileText, CheckCircle, AlertCircle, XCircle, Loader2, ArrowRight, RefreshCw } from 'lucide-react';
+import { Upload as UploadIcon, FileText, CheckCircle, AlertCircle, Loader2, ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
 
 const Upload = () => {
   const [file, setFile] = useState(null);
@@ -95,28 +96,31 @@ const Upload = () => {
 
       {/* Upload Zone */}
       {!previewResult && !finalResult && (
-        <div className="glass-card p-8">
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-8"
+        >
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
               isDragActive
-                ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-900/10'
-                : 'border-gray-300 dark:border-dark-600 hover:border-primary-400 hover:bg-gray-50 dark:hover:bg-dark-800/50'
+                ? 'border-primary-500 bg-primary-50/80 dark:bg-primary-900/20 scale-[1.02] shadow-xl shadow-primary-500/10'
+                : 'border-gray-300 dark:border-dark-600 hover:border-primary-400 hover:bg-gray-50 dark:hover:bg-dark-800/50 hover:shadow-lg'
             }`}
           >
             <input {...getInputProps()} />
             <div className="flex flex-col items-center gap-4">
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-colors ${
-                isDragActive ? 'bg-primary-100 dark:bg-primary-900/30' : 'bg-gray-100 dark:bg-dark-700'
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                isDragActive ? 'bg-primary-100 dark:bg-primary-900/40 scale-110' : 'bg-gray-100 dark:bg-dark-700'
               }`}>
-                <UploadIcon className={`w-8 h-8 ${isDragActive ? 'text-primary-500' : 'text-gray-400'}`} />
+                <UploadIcon className={`w-8 h-8 transition-colors ${isDragActive ? 'text-primary-500' : 'text-gray-400'}`} />
               </div>
               {isDragActive ? (
-                <p className="text-primary-600 dark:text-primary-400 font-medium">Drop your PDF here...</p>
+                <p className="text-primary-600 dark:text-primary-400 font-medium text-lg">Drop your file here to extract...</p>
               ) : (
                 <>
                   <div>
-                    <p className="text-gray-900 dark:text-gray-100 font-medium">
+                    <p className="text-gray-900 dark:text-gray-100 font-medium text-lg">
                       Drag & drop your Pending Bills file
                     </p>
                     <p className="text-gray-500 text-sm mt-1">or click to browse (Excel, CSV, PDF, max 10MB)</p>
@@ -128,41 +132,45 @@ const Upload = () => {
 
           {/* File preview */}
           {file && (
-            <div className="mt-6 flex items-center justify-between bg-gray-50 dark:bg-dark-800 rounded-xl p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-red-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{file.name}</p>
-                  <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
-                </div>
-              </div>
-              <button
-                onClick={handleExtract}
-                disabled={uploading}
-                className="btn-primary"
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Extracting...
-                  </>
-                ) : (
-                  <>
+            <div className="mt-6">
+              {uploading ? (
+                 <div className="bg-gray-50 dark:bg-dark-800 rounded-2xl p-8 text-center space-y-5 animate-fade-in border border-gray-200 dark:border-dark-700 shadow-inner">
+                    <div className="relative w-full h-2.5 bg-gray-200 dark:bg-dark-700 rounded-full overflow-hidden">
+                       <div className="absolute top-0 left-0 h-full bg-primary-500 rounded-full animate-[shimmer_1.5s_infinite] w-full" style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)' }}></div>
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-sm font-bold text-primary-600 dark:text-primary-400 animate-pulse">Extracting & Analyzing ERP Data...</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Please wait while we match records against your database</p>
+                    </div>
+                 </div>
+              ) : (
+                <div className="flex items-center justify-between bg-gray-50 dark:bg-dark-800 rounded-2xl p-4 border border-gray-200 dark:border-dark-700">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center shadow-sm">
+                      <FileText className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{file.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{(file.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleExtract}
+                    className="btn-primary shadow-lg hover:-translate-y-0.5"
+                  >
                     Preview Extract
                     <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
+                  </button>
+                </div>
+              )}
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* Preview Step */}
       {previewResult && !finalResult && (
-        <div className="space-y-6 animate-fade-in">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">Step 1: Preview Extraction</h2>
             <div className="flex gap-3">
@@ -234,14 +242,19 @@ const Upload = () => {
               )}
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Final Results Step 2 */}
       {finalResult && (
-        <div className="space-y-6 animate-fade-in">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring' }} className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Step 2: Import Complete</h2>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-emerald-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Import Complete!</h2>
+            </div>
             <button onClick={handleReset} className="btn-secondary">
               <RefreshCw className="w-4 h-4" /> Upload Another
             </button>
@@ -321,7 +334,7 @@ const Upload = () => {
               </div>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
     </div>
   );

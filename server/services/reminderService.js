@@ -7,10 +7,10 @@ const twilio = require('twilio');
 /**
  * Generate reminder message using template
  */
-const generateReminderMessage = async (bill) => {
-  let settings = await Settings.findOne();
+const generateReminderMessage = async (bill, merchantId) => {
+  let settings = await Settings.findOne({ merchantId });
   if (!settings) {
-    settings = await Settings.create({});
+    settings = await Settings.create({ merchantId });
   }
 
   let template = settings.defaultReminderTemplate;
@@ -29,14 +29,14 @@ const generateReminderMessage = async (bill) => {
  * Simulate sending a reminder (WhatsApp/SMS)
  * In production, this would integrate with Twilio/WhatsApp Business API
  */
-const sendReminder = async (billId, reminderType = 'WhatsApp') => {
-  const bill = await Bill.findById(billId);
+const sendReminder = async (billId, reminderType = 'WhatsApp', merchantId) => {
+  const bill = await Bill.findOne({ _id: billId, merchantId });
   if (!bill) throw new Error('Bill not found');
 
-  const party = await Party.findOne({ partyName: bill.partyName });
+  const party = await Party.findOne({ merchantId, partyName: bill.partyName });
   const phoneNumber = party?.phoneNumber || '';
 
-  const message = await generateReminderMessage(bill);
+  const message = await generateReminderMessage(bill, merchantId);
 
   let isSuccess = false;
   let errorMessage = '';
@@ -85,6 +85,7 @@ const sendReminder = async (billId, reminderType = 'WhatsApp') => {
   }
 
   const reminder = await ReminderHistory.create({
+    merchantId,
     billId: bill._id,
     billNumber: bill.billNumber,
     partyName: bill.partyName,
@@ -115,11 +116,11 @@ const sendReminder = async (billId, reminderType = 'WhatsApp') => {
 /**
  * Send bulk reminders for multiple bills
  */
-const sendBulkReminders = async (billIds, reminderType = 'WhatsApp') => {
+const sendBulkReminders = async (billIds, reminderType = 'WhatsApp', merchantId) => {
   const results = [];
   for (const billId of billIds) {
     try {
-      const result = await sendReminder(billId, reminderType);
+      const result = await sendReminder(billId, reminderType, merchantId);
       results.push(result);
     } catch (error) {
       results.push({ success: false, message: error.message });

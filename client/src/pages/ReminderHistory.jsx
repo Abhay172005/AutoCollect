@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { reminderService } from '../services/dataService';
-import { History, Search, Filter, MessageSquare, X } from 'lucide-react';
+import { History, Search, Filter, MessageSquare, X, Bell } from 'lucide-react';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
 
 const ReminderHistory = () => {
   const [reminders, setReminders] = useState([]);
@@ -85,15 +87,18 @@ const ReminderHistory = () => {
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="table-row">
                     {Array.from({ length: 7 }).map((_, j) => (
-                      <td key={j} className="table-cell"><div className="skeleton-text w-20 h-4" /></td>
+                      <td key={j} className="table-cell"><Skeleton className="w-full h-4" /></td>
                     ))}
                   </tr>
                 ))
               ) : reminders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-500">
-                    <History className="w-12 h-12 mx-auto text-gray-300 dark:text-dark-600 mb-3" />
-                    <p>No reminder history yet</p>
+                  <td colSpan={7} className="px-4 py-8">
+                    <EmptyState 
+                      icon={Bell} 
+                      title="No reminder history" 
+                      description="You haven't sent any reminders yet."
+                    />
                   </td>
                 </tr>
               ) : (

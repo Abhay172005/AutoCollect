@@ -6,8 +6,8 @@ exports.getUploadHistories = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
 
-    const total = await UploadHistory.countDocuments();
-    const histories = await UploadHistory.find()
+    const total = await UploadHistory.countDocuments({ merchantId: req.user.id });
+    const histories = await UploadHistory.find({ merchantId: req.user.id })
       .sort({ uploadDate: -1 })
       .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit));
@@ -31,7 +31,7 @@ exports.getUploadHistories = async (req, res) => {
 // @route   GET /api/upload-history/:id
 exports.getUploadHistory = async (req, res) => {
   try {
-    const history = await UploadHistory.findById(req.params.id);
+    const history = await UploadHistory.findOne({ _id: req.params.id, merchantId: req.user.id });
     if (!history) {
       return res.status(404).json({ success: false, message: 'Upload history not found' });
     }

@@ -1,27 +1,29 @@
 import { useState, useEffect } from 'react';
 import { uploadHistoryService } from '../services/dataService';
-import { Loader2, Calendar, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Calendar, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
 
 const UploadHistory = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
   const fetchHistory = async () => {
     try {
       setLoading(true);
-      const res = await uploadHistoryService.getHistories({ limit: 50 });
-      setHistory(res.data.data);
-    } catch (err) {
-      toast.error('Failed to fetch upload history');
+      const res = await uploadHistoryService.getHistories();
+      setHistory(res.data.data || []);
+    } catch {
+      toast.error('Failed to load upload history');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -46,15 +48,21 @@ const UploadHistory = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="p-8 text-center">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary-500" />
-                  </td>
-                </tr>
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="table-row">
+                    {Array.from({ length: 7 }).map((_, j) => (
+                      <td key={j} className="table-cell"><Skeleton className="w-full h-4" /></td>
+                    ))}
+                  </tr>
+                ))
               ) : history.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-500">
-                    No upload history found
+                  <td colSpan={7} className="px-4 py-8">
+                    <EmptyState 
+                      icon={FileText} 
+                      title="No upload history" 
+                      description="You haven't uploaded any reports yet."
+                    />
                   </td>
                 </tr>
               ) : (

@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { partyService } from '../services/dataService';
-import { Search, Plus, Edit2, Trash2, Phone, PhoneOff, X, Loader2, MapPin, ExternalLink } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Phone, PhoneOff, X, Loader2, MapPin, ExternalLink, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
 
 const Parties = () => {
   const [parties, setParties] = useState([]);
@@ -189,20 +191,26 @@ const Parties = () => {
         </div>
       )}
 
-      {/* Party Cards Grid */}
+    {/* Party Cards Grid */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="glass-card p-5 animate-pulse">
-              <div className="skeleton-text w-32 h-5 mb-2" />
-              <div className="skeleton-text w-24 h-4 mb-4" />
-              <div className="skeleton-text w-full h-4" />
+            <div key={i} className="glass-card p-5">
+              <Skeleton className="w-32 h-5 mb-2" />
+              <Skeleton className="w-24 h-4 mb-4" />
+              <Skeleton className="w-full h-4" />
             </div>
           ))}
         </div>
       ) : parties.length === 0 ? (
-        <div className="glass-card p-12 text-center">
-          <p className="text-gray-500">No parties found</p>
+        <div className="glass-card">
+          <EmptyState 
+            icon={Users} 
+            title="No parties found" 
+            description="Add your customers to start tracking their payments."
+            action={openAddForm}
+            actionText="Add Party"
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

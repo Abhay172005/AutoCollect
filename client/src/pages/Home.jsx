@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { 
   ArrowRight, 
   CheckCircle2, 
@@ -14,11 +15,15 @@ import {
   Wallet,
   UploadCloud,
   MessageSquare,
-  BarChart
+  BarChart,
+  Moon,
+  Sun
 } from 'lucide-react';
+import PageTransition from '../components/layout/PageTransition';
 
 const Home = () => {
   const { isAuthenticated } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
 
   const features = [
     {
@@ -73,11 +78,19 @@ const Home = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-dark-950 font-sans selection:bg-primary-500/30">
+    <PageTransition>
+      <div className="min-h-screen bg-gray-50/50 dark:bg-[#09090b] font-sans selection:bg-primary-500/30 relative">
       
+      {/* Animated Mesh Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-50 dark:opacity-20 overflow-hidden">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary-500 blur-[140px] mix-blend-multiply animate-pulse-slow" />
+        <div className="absolute top-[10%] right-[-10%] w-[40%] h-[60%] rounded-full bg-emerald-500 blur-[140px] mix-blend-multiply animate-pulse-slow" style={{animationDelay: '1s'}} />
+        <div className="absolute bottom-[-10%] left-[20%] w-[40%] h-[50%] rounded-full bg-cyan-500 blur-[140px] mix-blend-multiply animate-pulse-slow" style={{animationDelay: '2s'}} />
+      </div>
+
       {/* Navigation Bar */}
-      <nav className="fixed top-0 w-full z-50 bg-white/70 dark:bg-dark-900/70 backdrop-blur-2xl border-b border-gray-200/50 dark:border-dark-700/50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
+      <nav className="fixed top-4 left-4 right-4 max-w-7xl mx-auto z-50 bg-white/80 dark:bg-dark-900/80 backdrop-blur-2xl border border-gray-200/50 dark:border-dark-700/50 rounded-2xl shadow-sm">
+        <div className="px-6 h-16 flex justify-between items-center">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-lg shadow-primary-500/30">
               <Wallet className="w-5 h-5 text-white" />
@@ -86,14 +99,21 @@ const Home = () => {
               AutoCollect
             </span>
           </div>
-          <div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 bg-gray-100/50 hover:bg-primary-50 dark:bg-dark-800/50 dark:hover:bg-primary-900/20 transition-all border border-transparent hover:border-primary-100 dark:hover:border-primary-900/30"
+              title="Toggle theme"
+            >
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
             {isAuthenticated ? (
               <Link to="/dashboard" className="btn-primary">
                 Go to Dashboard <ArrowRight className="w-4 h-4" />
               </Link>
             ) : (
-              <Link to="/login" className="btn-primary">
-                Sign In <ArrowRight className="w-4 h-4" />
+              <Link to="/signup" className="btn-primary">
+                Get Started <ArrowRight className="w-4 h-4" />
               </Link>
             )}
           </div>
@@ -102,12 +122,6 @@ const Home = () => {
 
       {/* Hero Section */}
       <div className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-        {/* Background Gradients */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-20%] left-[-15%] w-[50%] h-[50%] bg-primary-500/15 dark:bg-primary-500/10 blur-[140px] rounded-full" />
-          <div className="absolute top-[10%] right-[-15%] w-[40%] h-[60%] bg-amber-500/15 dark:bg-amber-500/10 blur-[140px] rounded-full" />
-          <div className="absolute bottom-[-10%] left-[30%] w-[30%] h-[40%] bg-blue-500/10 dark:bg-blue-500/5 blur-[120px] rounded-full" />
-        </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-6 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 dark:bg-dark-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-dark-700/50 text-sm font-semibold mb-8 animate-fade-in shadow-sm">
@@ -131,7 +145,7 @@ const Home = () => {
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
             <Link 
-              to={isAuthenticated ? "/dashboard" : "/login"} 
+              to={isAuthenticated ? "/dashboard" : "/signup"} 
               className="px-8 py-4 rounded-2xl bg-gradient-to-r from-gray-900 to-gray-800 dark:from-white dark:to-gray-100 text-white dark:text-gray-900 font-semibold text-lg hover:-translate-y-1 hover:shadow-2xl hover:shadow-gray-900/20 dark:hover:shadow-white/20 transition-all duration-300 flex items-center gap-3 w-full sm:w-auto justify-center"
             >
               {isAuthenticated ? "Enter Dashboard" : "Get Started for Free"}
@@ -246,7 +260,7 @@ const Home = () => {
             Join the smart merchants who have slashed their outstanding receivables.
           </p>
           <Link 
-            to={isAuthenticated ? "/dashboard" : "/login"} 
+            to={isAuthenticated ? "/dashboard" : "/signup"} 
             className="btn-primary px-8 py-4 text-lg inline-flex items-center gap-2 hover:scale-105 transition-transform"
           >
             Go to App <ArrowRight className="w-5 h-5" />
@@ -259,6 +273,7 @@ const Home = () => {
         <p>© 2026 AutoCollect.</p>
       </footer>
     </div>
+    </PageTransition>
   );
 };
 

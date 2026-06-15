@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { reportService } from '../services/dataService';
-import { FileText, Download, Loader2, AlertTriangle, CheckCircle, Clock, CreditCard, Bell } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, CheckCircle, Clock, CreditCard, Bell, FileSpreadsheet } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
 
 const reportTypes = [
   { key: 'pending', label: 'Pending Bills', icon: Clock, color: 'from-blue-500 to-blue-600', desc: 'All upcoming, due today, and overdue bills' },
@@ -25,7 +27,7 @@ const Reports = () => {
       const res = await reportService.getReport(type);
       setData(res.data.data || []);
       setSummary(res.data.summary);
-    } catch (err) {
+    } catch {
       toast.error('Failed to generate report');
     } finally {
       setLoading(false);
@@ -45,7 +47,7 @@ const Reports = () => {
       link.click();
       link.remove();
       toast.success('Report exported');
-    } catch (err) {
+    } catch {
       toast.error('Export failed');
     } finally {
       setExporting(false);
@@ -144,12 +146,20 @@ const Reports = () => {
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="table-row">
                         {Array.from({ length: isReminderReport ? 6 : 7 }).map((_, j) => (
-                          <td key={j} className="table-cell"><div className="skeleton-text w-20 h-4" /></td>
+                          <td key={j} className="table-cell"><Skeleton className="w-full h-4" /></td>
                         ))}
                       </tr>
                     ))
                   ) : data.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-12 text-gray-500">No data for this report</td></tr>
+                    <tr>
+                      <td colSpan={isReminderReport ? 6 : 7} className="px-4 py-8">
+                        <EmptyState 
+                          icon={FileSpreadsheet} 
+                          title="No data found" 
+                          description="There is no data available for this report type."
+                        />
+                      </td>
+                    </tr>
                   ) : isReminderReport ? (
                     data.map((r) => (
                       <tr key={r._id} className="table-row">

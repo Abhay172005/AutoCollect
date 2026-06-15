@@ -5,7 +5,7 @@ const Party = require('../models/Party');
 exports.getParties = async (req, res) => {
   try {
     const { search = '', city, page = 1, limit = 50, missingPhone } = req.query;
-    const query = {};
+    const query = { merchantId: req.user.id };
 
     if (search) {
       query.$or = [
@@ -46,14 +46,14 @@ exports.addParty = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Party name is required' });
     }
 
-    const existing = await Party.findOne({ partyName });
+    const existing = await Party.findOne({ merchantId: req.user.id, partyName });
     if (existing) {
       return res.status(400).json({ success: false, message: 'Party already exists' });
     }
 
     const finalPhone = phoneNumber && phoneNumber.trim() !== '' ? phoneNumber : '+918769744939';
     
-    const party = await Party.create({ partyName, phoneNumber: finalPhone, city, email, notes });
+    const party = await Party.create({ merchantId: req.user.id, partyName, phoneNumber: finalPhone, city, email, notes });
     res.status(201).json({ success: true, data: party });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -64,7 +64,7 @@ exports.addParty = async (req, res) => {
 // @route   PUT /api/parties/:id
 exports.updateParty = async (req, res) => {
   try {
-    const party = await Party.findByIdAndUpdate(req.params.id, req.body, {
+    const party = await Party.findOneAndUpdate({ _id: req.params.id, merchantId: req.user.id }, req.body, {
       new: true,
       runValidators: true
     });
@@ -83,7 +83,7 @@ exports.updateParty = async (req, res) => {
 // @route   DELETE /api/parties/:id
 exports.deleteParty = async (req, res) => {
   try {
-    const party = await Party.findByIdAndDelete(req.params.id);
+    const party = await Party.findOneAndDelete({ _id: req.params.id, merchantId: req.user.id });
     if (!party) {
       return res.status(404).json({ success: false, message: 'Party not found' });
     }
@@ -98,6 +98,7 @@ exports.deleteParty = async (req, res) => {
 exports.getMissingPhone = async (req, res) => {
   try {
     const parties = await Party.find({
+      merchantId: req.user.id,
       $or: [{ phoneNumber: '' }, { phoneNumber: { $exists: false } }, { phoneNumber: null }]
     }).sort({ partyName: 1 });
 
@@ -111,7 +112,7 @@ exports.getMissingPhone = async (req, res) => {
 // @route   GET /api/parties/cities
 exports.getCities = async (req, res) => {
   try {
-    const cities = await Party.distinct('city', { city: { $ne: '' } });
+    const cities = await Party.distinct('city', { merchantId: req.user.id, city: { $ne: '' } });
     res.json({ success: true, data: cities.sort() });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -127,7 +128,7 @@ exports.bulkDeleteParties = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide an array of party IDs to delete' });
     }
 
-    const result = await Party.deleteMany({ _id: { $in: ids } });
+    const result = await Party.deleteMany({ _id: { $in: ids }, merchantId: req.user.id });
     res.json({ success: true, message: `${result.deletedCount} parties deleted successfully` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

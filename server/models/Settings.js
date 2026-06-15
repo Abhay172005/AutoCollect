@@ -1,13 +1,17 @@
 const mongoose = require('mongoose');
 
 const settingsSchema = new mongoose.Schema({
+  merchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    unique: true
+  },
   merchantName: {
-    type: String,
-    default: 'Admin'
+    type: String
   },
   businessName: {
-    type: String,
-    default: 'Amar Steel Industries'
+    type: String
   },
   defaultReminderTemplate: {
     type: String,
@@ -18,8 +22,22 @@ const settingsSchema = new mongoose.Schema({
     default: 30
   },
   adminEmail: {
+    type: String
+  },
+  // Future WhatsApp Business API Integration Placeholder
+  whatsappAccountId: {
+    type: String
+  },
+  whatsappPhoneNumberId: {
+    type: String
+  },
+  whatsappAccessToken: {
+    type: String
+  },
+  whatsappStatus: {
     type: String,
-    default: 'admin@autocollect.com'
+    enum: ['Disconnected', 'Connected'],
+    default: 'Disconnected'
   }
 }, {
   timestamps: true

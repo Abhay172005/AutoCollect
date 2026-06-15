@@ -4,9 +4,9 @@ const Settings = require('../models/Settings');
 // @route   GET /api/settings
 exports.getSettings = async (req, res) => {
   try {
-    let settings = await Settings.findOne();
+    let settings = await Settings.findOne({ merchantId: req.user.id });
     if (!settings) {
-      settings = await Settings.create({});
+      settings = await Settings.create({ merchantId: req.user.id });
     }
     res.json({ success: true, data: settings });
   } catch (error) {
@@ -18,9 +18,9 @@ exports.getSettings = async (req, res) => {
 // @route   PUT /api/settings
 exports.updateSettings = async (req, res) => {
   try {
-    let settings = await Settings.findOne();
+    let settings = await Settings.findOne({ merchantId: req.user.id });
     if (!settings) {
-      settings = new Settings(req.body);
+      settings = new Settings({ ...req.body, merchantId: req.user.id });
     } else {
       Object.keys(req.body).forEach(key => {
         settings[key] = req.body[key];

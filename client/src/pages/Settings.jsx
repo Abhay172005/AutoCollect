@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { settingsService } from '../services/dataService';
-import { Settings as SettingsIcon, Save, Loader2, Building2, MessageSquareText, User, Mail, CalendarDays, Eye } from 'lucide-react';
+import { Save, Loader2, Building2, MessageSquareText, User, Mail, CalendarDays, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Skeleton from '../components/ui/Skeleton';
 
 const Settings = () => {
   const [settings, setSettings] = useState({
@@ -15,27 +16,27 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
   const fetchSettings = async () => {
     try {
       const res = await settingsService.getSettings();
       setSettings(res.data.data);
-    } catch (err) {
+    } catch {
       toast.error('Failed to load settings');
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
   const handleSave = async () => {
     setSaving(true);
     try {
       await settingsService.updateSettings(settings);
       toast.success('Settings saved successfully');
-    } catch (err) {
+    } catch {
       toast.error('Failed to save settings');
     } finally {
       setSaving(false);
@@ -53,10 +54,10 @@ const Settings = () => {
   if (loading) {
     return (
       <div className="space-y-6 max-w-3xl">
-        <div className="skeleton-text w-40 h-8" />
+        <Skeleton className="w-40 h-8" />
         <div className="glass-card p-6 space-y-4">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i}><div className="skeleton-text w-24 h-4 mb-2" /><div className="skeleton-text w-full h-10" /></div>
+            <div key={i}><Skeleton className="w-24 h-4 mb-2" /><Skeleton className="w-full h-10" /></div>
           ))}
         </div>
       </div>

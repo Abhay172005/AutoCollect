@@ -34,8 +34,10 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/settings', require('./routes/settings'));
 
+const { protect } = require('./middleware/auth');
+
 // Global search endpoint
-app.get('/api/search', async (req, res) => {
+app.get('/api/search', protect, async (req, res) => {
   try {
     const { q } = req.query;
     if (!q) return res.json({ success: true, data: { bills: [], parties: [] } });
@@ -45,12 +47,14 @@ app.get('/api/search', async (req, res) => {
 
     const [bills, parties] = await Promise.all([
       Bill.find({
+        merchantId: req.user.id,
         $or: [
           { partyName: { $regex: q, $options: 'i' } },
           { billNumber: { $regex: q, $options: 'i' } }
         ]
       }).limit(10),
       Party.find({
+        merchantId: req.user.id,
         $or: [
           { partyName: { $regex: q, $options: 'i' } },
           { phoneNumber: { $regex: q, $options: 'i' } },

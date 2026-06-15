@@ -8,6 +8,12 @@ const paymentHistorySchema = new mongoose.Schema({
 });
 
 const billSchema = new mongoose.Schema({
+  merchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
   partyName: {
     type: String,
     required: [true, 'Party name is required'],

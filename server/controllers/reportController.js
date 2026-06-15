@@ -7,7 +7,7 @@ exports.getReport = async (req, res) => {
   try {
     const { type } = req.params;
     const { startDate, endDate, partyName } = req.query;
-    let query = {};
+    let query = { merchantId: req.user.id };
     let data;
 
     // Date range filter
@@ -19,36 +19,37 @@ exports.getReport = async (req, res) => {
 
     if (partyName) query.partyName = { $regex: partyName, $options: 'i' };
 
-    switch (type) {
-      case 'pending':
-        query.status = { $in: ['Upcoming', 'Due Today', 'Overdue'] };
-        data = await Bill.find(query).sort({ dueDate: 1 });
-        break;
-      case 'overdue':
-        query.status = 'Overdue';
-        data = await Bill.find(query).sort({ dueDate: 1 });
-        break;
-      case 'paid':
-        query.status = 'Paid';
-        data = await Bill.find(query).sort({ updatedAt: -1 });
-        break;
-      case 'partial':
-        query.status = 'Partially Paid';
-        data = await Bill.find(query).sort({ updatedAt: -1 });
-        break;
-      case 'reminders':
-        const reminderQuery = {};
-        if (partyName) reminderQuery.partyName = { $regex: partyName, $options: 'i' };
-        if (startDate || endDate) {
-          reminderQuery.sentAt = {};
-          if (startDate) reminderQuery.sentAt.$gte = new Date(startDate);
-          if (endDate) reminderQuery.sentAt.$lte = new Date(endDate);
-        }
-        data = await ReminderHistory.find(reminderQuery).sort({ sentAt: -1 });
-        break;
-      default:
+    if (type === 'reminders') {
+      const reminderQuery = { merchantId: req.user.id };
+      if (partyName) reminderQuery.partyName = { $regex: partyName, $options: 'i' };
+      if (startDate || endDate) {
+        reminderQuery.sentAt = {};
+        if (startDate) reminderQuery.sentAt.$gte = new Date(startDate);
+        if (endDate) reminderQuery.sentAt.$lte = new Date(endDate);
+      }
+      data = await ReminderHistory.find(reminderQuery).sort({ sentAt: -1 });
+    } else {
+      const statusMap = {
+        pending: { $in: ['Upcoming', 'Due Today', 'Overdue'] },
+        overdue: 'Overdue',
+        paid: 'Paid',
+        partial: 'Partially Paid'
+      };
+      
+      if (!statusMap[type]) {
         return res.status(400).json({ success: false, message: 'Invalid report type' });
+      }
+      
+      query.status = statusMap[type];
+      const sortMap = {
+        pending: { dueDate: 1 },
+        overdue: { dueDate: 1 },
+        paid: { updatedAt: -1 },
+        partial: { updatedAt: -1 }
+      };
+      data = await Bill.find(query).sort(sortMap[type]);
     }
+
 
     // Calculate summary
     let totalAmount = 0;
@@ -79,7 +80,7 @@ exports.exportReport = async (req, res) => {
   try {
     const { type } = req.params;
     const { startDate, endDate, partyName } = req.query;
-    let query = {};
+    let query = { merchantId: req.user.id };
     let data;
     let fields;
 
@@ -92,7 +93,7 @@ exports.exportReport = async (req, res) => {
     if (partyName) query.partyName = { $regex: partyName, $options: 'i' };
 
     if (type === 'reminders') {
-      const reminderQuery = {};
+      const reminderQuery = { merchantId: req.user.id };
       if (partyName) reminderQuery.partyName = { $regex: partyName, $options: 'i' };
       data = await ReminderHistory.find(reminderQuery).sort({ sentAt: -1 });
       fields = ['partyName', 'billNumber', 'phoneNumber', 'reminderType', 'status', 'sentAt', 'message'];

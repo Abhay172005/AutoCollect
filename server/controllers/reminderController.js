@@ -10,6 +10,7 @@ exports.getDueBills = async (req, res) => {
     today.setHours(0, 0, 0, 0);
 
     const bills = await Bill.find({
+      merchantId: req.user.id,
       status: { $in: ['Due Today', 'Overdue', 'Partially Paid'] },
       balanceAmount: { $gt: 0 }
     }).sort({ dueDate: 1 });
@@ -47,12 +48,12 @@ exports.getDueBills = async (req, res) => {
 // @route   GET /api/reminders/preview/:billId
 exports.previewReminder = async (req, res) => {
   try {
-    const bill = await Bill.findById(req.params.billId);
+    const bill = await Bill.findOne({ _id: req.params.billId, merchantId: req.user.id });
     if (!bill) {
       return res.status(404).json({ success: false, message: 'Bill not found' });
     }
 
-    const message = await generateReminderMessage(bill);
+    const message = await generateReminderMessage(bill, req.user.id);
     res.json({ success: true, data: { message, bill } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -69,7 +70,7 @@ exports.sendReminderCtrl = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Bill ID is required' });
     }
 
-    const result = await sendReminder(billId, reminderType);
+    const result = await sendReminder(billId, reminderType, req.user.id);
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -86,7 +87,7 @@ exports.sendBulkRemindersCtrl = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Bill IDs are required' });
     }
 
-    const results = await sendBulkReminders(billIds, reminderType);
+    const results = await sendBulkReminders(billIds, reminderType, req.user.id);
     const sent = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
 
@@ -112,7 +113,7 @@ exports.getReminderHistory = async (req, res) => {
       endDate
     } = req.query;
 
-    const query = {};
+    const query = { merchantId: req.user.id };
 
     if (partyName) query.partyName = { $regex: partyName, $options: 'i' };
     if (status) query.status = status;

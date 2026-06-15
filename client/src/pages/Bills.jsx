@@ -5,6 +5,9 @@ import toast from 'react-hot-toast';
 import AddInvoiceModal from '../components/bills/AddInvoiceModal';
 import EditInvoiceModal from '../components/bills/EditInvoiceModal';
 import RecordPaymentModal from '../components/bills/RecordPaymentModal';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
+import { FileText } from 'lucide-react';
 
 const statusStyles = {
   'Upcoming': 'badge-info',
@@ -240,14 +243,20 @@ const Bills = () => {
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="table-row">
                     {Array.from({ length: 10 }).map((_, j) => (
-                      <td key={j} className="table-cell"><div className="skeleton-text w-20 h-4" /></td>
+                      <td key={j} className="table-cell"><Skeleton className="w-full h-4" /></td>
                     ))}
                   </tr>
                 ))
               ) : bills.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                      No bills found.
+                    <td colSpan="10" className="px-4 py-8">
+                      <EmptyState 
+                        icon={FileText} 
+                        title="No invoices found" 
+                        description="Upload your first ERP report to start tracking payments."
+                        action={() => setIsAddModalOpen(true)}
+                        actionText="Add Invoice"
+                      />
                     </td>
                   </tr>
               ) : (

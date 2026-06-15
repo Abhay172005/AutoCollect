@@ -1,6 +1,12 @@
 const mongoose = require('mongoose');
 
 const uploadHistorySchema = new mongoose.Schema({
+  merchantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
   fileName: {
     type: String,
     required: [true, 'File name is required']

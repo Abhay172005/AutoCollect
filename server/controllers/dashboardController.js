@@ -1,5 +1,6 @@
 const Bill = require('../models/Bill');
 const ReminderHistory = require('../models/ReminderHistory');
+const mongoose = require('mongoose');
 
 // @desc    Get dashboard stats
 // @route   GET /api/dashboard/stats
@@ -19,16 +20,17 @@ exports.getStats = async (req, res) => {
       outstandingResult,
       remindersSentToday
     ] = await Promise.all([
-      Bill.countDocuments({ status: { $in: ['Upcoming', 'Due Today', 'Overdue'] } }),
-      Bill.countDocuments({ status: 'Due Today' }),
-      Bill.countDocuments({ status: 'Overdue' }),
-      Bill.countDocuments({ status: 'Partially Paid' }),
-      Bill.countDocuments({ status: 'Paid' }),
+      Bill.countDocuments({ merchantId: req.user.id, status: { $in: ['Upcoming', 'Due Today', 'Overdue'] } }),
+      Bill.countDocuments({ merchantId: req.user.id, status: 'Due Today' }),
+      Bill.countDocuments({ merchantId: req.user.id, status: 'Overdue' }),
+      Bill.countDocuments({ merchantId: req.user.id, status: 'Partially Paid' }),
+      Bill.countDocuments({ merchantId: req.user.id, status: 'Paid' }),
       Bill.aggregate([
-        { $match: { status: { $ne: 'Paid' } } },
+        { $match: { merchantId: new mongoose.Types.ObjectId(req.user.id), status: { $ne: 'Paid' } } },
         { $group: { _id: null, total: { $sum: '$balanceAmount' } } }
       ]),
       ReminderHistory.countDocuments({
+        merchantId: req.user.id,
         sentAt: { $gte: today, $lt: tomorrow },
         status: 'Sent'
       })
@@ -58,7 +60,7 @@ exports.getStats = async (req, res) => {
 exports.getOutstandingByCustomer = async (req, res) => {
   try {
     const data = await Bill.aggregate([
-      { $match: { status: { $ne: 'Paid' }, balanceAmount: { $gt: 0 } } },
+      { $match: { merchantId: new mongoose.Types.ObjectId(req.user.id), status: { $ne: 'Paid' }, balanceAmount: { $gt: 0 } } },
       { $group: { _id: '$partyName', totalOutstanding: { $sum: '$balanceAmount' } } },
       { $sort: { totalOutstanding: -1 } },
       { $limit: 10 },
@@ -79,7 +81,7 @@ exports.getOverdueTrend = async (req, res) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const data = await Bill.aggregate([
-      { $match: { dueDate: { $gte: thirtyDaysAgo }, status: 'Overdue' } },
+      { $match: { merchantId: new mongoose.Types.ObjectId(req.user.id), dueDate: { $gte: thirtyDaysAgo }, status: 'Overdue' } },
       {
         $group: {
           _id: { $dateToString: { format: '%Y-%m-%d', date: '$dueDate' } },
@@ -102,6 +104,7 @@ exports.getOverdueTrend = async (req, res) => {
 exports.getCollectionStatus = async (req, res) => {
   try {
     const data = await Bill.aggregate([
+      { $match: { merchantId: new mongoose.Types.ObjectId(req.user.id) } },
       { $group: { _id: '$status', count: { $sum: 1 }, amount: { $sum: '$balanceAmount' } } },
       { $project: { status: '$_id', count: 1, amount: 1, _id: 0 } }
     ]);
@@ -117,8 +120,8 @@ exports.getCollectionStatus = async (req, res) => {
 exports.getRecentActivities = async (req, res) => {
   try {
     const [recentBills, recentReminders] = await Promise.all([
-      Bill.find().sort({ updatedAt: -1 }).limit(5).select('partyName billNumber status balanceAmount updatedAt'),
-      ReminderHistory.find().sort({ sentAt: -1 }).limit(5).select('partyName billNumber status reminderType sentAt')
+      Bill.find({ merchantId: req.user.id }).sort({ updatedAt: -1 }).limit(5).select('partyName billNumber status balanceAmount updatedAt'),
+      ReminderHistory.find({ merchantId: req.user.id }).sort({ sentAt: -1 }).limit(5).select('partyName billNumber status reminderType sentAt')
     ]);
 
     const activities = [
@@ -150,13 +153,14 @@ exports.getRecentActivities = async (req, res) => {
 exports.getNotifications = async (req, res) => {
   try {
     const [dueToday, overdue, pendingReminders, partiallyPaid] = await Promise.all([
-      Bill.countDocuments({ status: 'Due Today' }),
-      Bill.countDocuments({ status: 'Overdue' }),
+      Bill.countDocuments({ merchantId: req.user.id, status: 'Due Today' }),
+      Bill.countDocuments({ merchantId: req.user.id, status: 'Overdue' }),
       Bill.countDocuments({
+        merchantId: req.user.id,
         status: { $in: ['Due Today', 'Overdue'] },
         reminderSent: false
       }),
-      Bill.countDocuments({ status: 'Partially Paid' })
+      Bill.countDocuments({ merchantId: req.user.id, status: 'Partially Paid' })
     ]);
 
     const notifications = [];

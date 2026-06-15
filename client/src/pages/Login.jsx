@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Wallet, Eye, EyeOff, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import PageTransition from '../components/layout/PageTransition';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -31,17 +32,13 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-950 via-dark-900 to-primary-950 relative overflow-hidden">
-      {/* Background decorations */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary-600/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary-500/5 rounded-full blur-3xl" />
-        {/* Grid pattern */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)',
-          backgroundSize: '60px 60px'
-        }} />
+    <PageTransition>
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50 dark:bg-dark-950 font-sans relative overflow-hidden">
+      {/* Animated Mesh Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-50 dark:opacity-20 overflow-hidden">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary-500 blur-[140px] mix-blend-multiply animate-pulse-slow" />
+        <div className="absolute top-[10%] right-[-10%] w-[40%] h-[60%] rounded-full bg-emerald-500 blur-[140px] mix-blend-multiply animate-pulse-slow" style={{animationDelay: '1s'}} />
+        <div className="absolute bottom-[-10%] left-[20%] w-[40%] h-[50%] rounded-full bg-cyan-500 blur-[140px] mix-blend-multiply animate-pulse-slow" style={{animationDelay: '2s'}} />
       </div>
 
       <div className="relative z-10 w-full max-w-md px-4">
@@ -51,43 +48,48 @@ const Login = () => {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-glow-lg mb-4">
               <Wallet className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-1">AutoCollect</h1>
-            <p className="text-gray-400 text-sm">Smart Receivables & Payment Reminders</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">AutoCollect</h1>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Smart Receivables & Payment Reminders</p>
           </div>
 
           {/* Login Card */}
-          <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 p-8 shadow-2xl">
-            <h2 className="text-xl font-semibold text-white mb-1">Welcome back</h2>
-            <p className="text-gray-400 text-sm mb-6">Sign in to your admin account</p>
+          <div className="glass-card p-8 shadow-2xl">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">Welcome back</h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">Sign in to your merchant account</p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Email</label>
                 <input
                   id="login-email"
                   type="email"
+                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@autocollect.com"
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/50 transition-all text-sm"
+                  placeholder="name@business.com"
+                  className="input-field"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Password</label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                  <button type="button" onClick={() => {}} className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300">Forgot password?</button>
+                </div>
                 <div className="relative">
                   <input
                     id="login-password"
                     type={showPassword ? 'text' : 'password'}
+                    required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500/50 transition-all text-sm pr-12"
+                    className="input-field pr-12"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -98,7 +100,7 @@ const Login = () => {
                 id="login-submit"
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-semibold text-sm transition-all duration-300 shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
+                className="btn-primary w-full mt-6 py-3"
               >
                 {loading ? (
                   <>
@@ -111,15 +113,19 @@ const Login = () => {
               </button>
             </form>
 
-            <div className="mt-6 pt-4 border-t border-white/5">
-              <p className="text-xs text-gray-500 text-center">
-                Demo: admin@autocollect.com / admin123
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-white/5 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Don't have an account?{' '}
+                <Link to="/signup" className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors">
+                  Sign up
+                </Link>
               </p>
             </div>
           </div>
         </div>
       </div>
     </div>
+    </PageTransition>
   );
 };
 

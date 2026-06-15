@@ -11,7 +11,7 @@ const Bill = require('../models/Bill');
  * - If balance unchanged → Recalculate status based on due date
  * - If bill is new → Insert
  */
-const compareBills = async (extractedBills, uploadBatch) => {
+const compareBills = async (extractedBills, uploadBatch, merchantId) => {
   const results = {
     new: 0,
     updated: 0,
@@ -24,7 +24,7 @@ const compareBills = async (extractedBills, uploadBatch) => {
 
   for (const extracted of extractedBills) {
     try {
-      const existingBill = await Bill.findOne({ billNumber: extracted.billNumber });
+      const existingBill = await Bill.findOne({ merchantId, billNumber: extracted.billNumber });
 
       if (existingBill) {
         const previousBalance = existingBill.balanceAmount;
@@ -88,6 +88,7 @@ const compareBills = async (extractedBills, uploadBatch) => {
       } else {
         // New bill – insert
         const newBill = new Bill({
+          merchantId,
           partyName: extracted.partyName,
           billNumber: extracted.billNumber,
           billDate: extracted.billDate,
@@ -123,7 +124,7 @@ const compareBills = async (extractedBills, uploadBatch) => {
 /**
  * Auto-create parties from extracted bill data if they don't exist
  */
-const syncParties = async (extractedBills) => {
+const syncParties = async (extractedBills, merchantId) => {
   const Party = require('../models/Party');
   const uniqueParties = [...new Set(extractedBills.map(b => b.partyName))];
   const newParties = [];
@@ -132,10 +133,11 @@ const syncParties = async (extractedBills) => {
   for (const partyName of uniqueParties) {
     if (!partyName || partyName === 'Unknown') continue;
 
-    let party = await Party.findOne({ partyName });
+    let party = await Party.findOne({ merchantId, partyName });
     if (!party) {
       const billData = extractedBills.find(b => b.partyName === partyName);
       party = await Party.create({
+        merchantId,
         partyName,
         city: billData?.city || '',
         phoneNumber: '+918769744939' // Hardcoded for POC demo
