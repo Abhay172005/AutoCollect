@@ -77,6 +77,15 @@ app.get('/api/health', (req, res) => {
 // Error handler
 app.use(errorHandler);
 
+// --- Serve Frontend in Production ---
+// 1. Serve static files from the React app build directory
+app.use(express.static(path.join(__dirname, '../client/dist')));
+
+// 2. Catch-all route to serve React's index.html for any unknown route (SPA routing)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+});
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
