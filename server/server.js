@@ -74,14 +74,14 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'AutoCollect API is running', timestamp: new Date() });
 });
 
-// Error handler
-app.use(errorHandler);
-
 // --- Serve Frontend in Production ---
-// 1. Serve static files from the React app build directory
+// Serve static files from the React app build directory
 app.use(express.static(path.join(__dirname, '../client/dist')));
 
-// 2. Catch-all route to serve React's index.html for any unknown route (SPA routing)
+// Error handler (for API routes)
+app.use(errorHandler);
+
+// Catch-all: serve React's index.html for any non-API route (SPA client-side routing)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });

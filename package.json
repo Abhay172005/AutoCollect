@@ -1,0 +1,10 @@
+{
+  "name": "autocollect",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AutoCollect – Smart Receivables & Payment Reminder System",
+  "scripts": {
+    "build": "cd client && npm install && npm run build && cd ../server && npm install",
+    "start": "cd server && node server.js"
+  }
+}
