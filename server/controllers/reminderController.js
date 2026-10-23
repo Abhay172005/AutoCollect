@@ -1,3 +1,5 @@
+'use strict';
+
 const Bill = require('../models/Bill');
 const ReminderHistory = require('../models/ReminderHistory');
 const { generateReminderMessage, sendReminder, sendBulkReminders } = require('../services/reminderService');
@@ -16,11 +18,11 @@ exports.getDueBills = async (req, res) => {
     }).sort({ dueDate: 1 });
 
     const grouped = {
-      dueToday: [],
-      overdue3Days: [],
-      overdue7Days: [],
+      dueToday:      [],
+      overdue3Days:  [],
+      overdue7Days:  [],
       overdue15Days: [],
-      other: []
+      other:         []
     };
 
     bills.forEach(bill => {
@@ -31,11 +33,11 @@ exports.getDueBills = async (req, res) => {
       const diffTime = today.getTime() - due.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      if (diffDays === 0) grouped.dueToday.push(bill);
-      else if (diffDays === 3) grouped.overdue3Days.push(bill);
-      else if (diffDays === 7) grouped.overdue7Days.push(bill);
+      if (diffDays === 0)       grouped.dueToday.push(bill);
+      else if (diffDays === 3)  grouped.overdue3Days.push(bill);
+      else if (diffDays === 7)  grouped.overdue7Days.push(bill);
       else if (diffDays === 15) grouped.overdue15Days.push(bill);
-      else grouped.other.push(bill);
+      else                      grouped.other.push(bill);
     });
 
     res.json({ success: true, data: grouped, count: bills.length });
@@ -60,7 +62,7 @@ exports.previewReminder = async (req, res) => {
   }
 };
 
-// @desc    Send reminder
+// @desc    Send reminder (single)
 // @route   POST /api/reminders/send
 exports.sendReminderCtrl = async (req, res) => {
   try {
@@ -71,6 +73,19 @@ exports.sendReminderCtrl = async (req, res) => {
     }
 
     const result = await sendReminder(billId, reminderType, req.user.id);
+
+    // ── Bug fix: propagate underlying send failure to the HTTP response ─────
+    // Previously the controller always returned HTTP 200 success=true even
+    // when the underlying message send had failed. Now we reflect the actual
+    // outcome so the frontend can show a proper error.
+    if (!result.success) {
+      return res.status(502).json({
+        success: false,
+        message: result.message,
+        data: result
+      });
+    }
+
     res.json({ success: true, data: result });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -87,12 +102,13 @@ exports.sendBulkRemindersCtrl = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Bill IDs are required' });
     }
 
-    const results = await sendBulkReminders(billIds, reminderType, req.user.id);
-    const sent = results.filter(r => r.success).length;
-    const failed = results.filter(r => !r.success).length;
+    const results  = await sendBulkReminders(billIds, reminderType, req.user.id);
+    const sent     = results.filter(r => r.success).length;
+    const failed   = results.filter(r => !r.success).length;
 
+    // Return details for every bill so the frontend can surface per-bill outcomes.
     res.json({
-      success: true,
+      success: true, // the bulk operation itself succeeded (individual results vary)
       data: { total: results.length, sent, failed, details: results }
     });
   } catch (error) {
@@ -101,7 +117,7 @@ exports.sendBulkRemindersCtrl = async (req, res) => {
 };
 
 // @desc    Get reminder history
-// @route   GET /api/reminder-history
+// @route   GET /api/reminders/history
 exports.getReminderHistory = async (req, res) => {
   try {
     const {
@@ -116,11 +132,11 @@ exports.getReminderHistory = async (req, res) => {
     const query = { merchantId: req.user.id };
 
     if (partyName) query.partyName = { $regex: partyName, $options: 'i' };
-    if (status) query.status = status;
+    if (status)    query.status = status;
     if (startDate || endDate) {
       query.sentAt = {};
       if (startDate) query.sentAt.$gte = new Date(startDate);
-      if (endDate) query.sentAt.$lte = new Date(endDate);
+      if (endDate)   query.sentAt.$lte = new Date(endDate);
     }
 
     const total = await ReminderHistory.countDocuments(query);
@@ -134,7 +150,7 @@ exports.getReminderHistory = async (req, res) => {
       data: reminders,
       pagination: {
         total,
-        page: parseInt(page),
+        page:  parseInt(page),
         pages: Math.ceil(total / parseInt(limit)),
         limit: parseInt(limit)
       }

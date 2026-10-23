@@ -36,7 +36,7 @@ const Home = () => {
     {
       icon: <BellRing className="w-6 h-6" />,
       title: 'WhatsApp Reminders',
-      description: 'Send real WhatsApp payment reminders to your clients with one click using the Twilio API.',
+      description: 'Send real WhatsApp payment reminders to your clients with one click via Meta WhatsApp Cloud API.',
       color: 'text-amber-500',
       bg: 'bg-amber-50 dark:bg-amber-900/20',
     },
@@ -129,7 +129,7 @@ const Home = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary-500"></span>
             </span>
-            <span className="text-gray-700 dark:text-gray-300">Now with Twilio WhatsApp API Integration</span>
+            <span className="text-gray-700 dark:text-gray-300">Powered by Meta WhatsApp Cloud API</span>
           </div>
           
           <h1 className="text-5xl md:text-7xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-8 animate-slide-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
@@ -211,7 +211,7 @@ const Home = () => {
                 </div>
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">3. Auto Remind</h3>
-              <p className="text-gray-600 dark:text-gray-400">Send personalized, professional WhatsApp payment reminders with a single click via Twilio.</p>
+              <p className="text-gray-600 dark:text-gray-400">Send personalized, professional WhatsApp payment reminders with a single click via Meta WhatsApp Cloud API.</p>
             </div>
           </div>
         </div>

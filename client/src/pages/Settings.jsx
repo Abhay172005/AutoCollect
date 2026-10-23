@@ -43,13 +43,15 @@ const Settings = () => {
     }
   };
 
+  // Sample values used for the local preview render — not sent anywhere
   const previewText = (settings.defaultReminderTemplate || '')
-    .replace('{partyName}', 'Sample Party')
-    .replace('{balanceAmount}', '1,50,000')
-    .replace('{billNumber}', 'INV-001')
-    .replace('{businessName}', settings.businessName || 'Your Business')
-    .replace('{dueDate}', new Date().toLocaleDateString('en-IN'))
-    .replace('{billAmount}', '2,00,000');
+    .replace(/\{partyName\}/g,     'Sharma Traders')
+    .replace(/\{billNumber\}/g,    'INV-2024-042')
+    .replace(/\{balanceAmount\}/g, '1,25,000')
+    .replace(/\{dueDate\}/g,       new Date().toLocaleDateString('en-IN'))
+    // Legacy placeholders — kept so custom templates that use them still preview correctly
+    .replace(/\{businessName\}/g,  settings.businessName || 'Amar Steel Industries')
+    .replace(/\{billAmount\}/g,    '1,50,000');
 
   if (loading) {
     return (
@@ -135,9 +137,17 @@ const Settings = () => {
       {/* Reminder Template Card */}
       <div className="glass-card overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200/50 dark:border-dark-700/50 bg-gray-50/50 dark:bg-dark-900/30 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <MessageSquareText className="w-4 h-4 text-primary-500" /> Reminder Template
-          </h2>
+          <div>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <MessageSquareText className="w-4 h-4 text-primary-500" /> Reminder Template Preview
+            </h2>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+              ⚠️ Preview only — actual WhatsApp messages are sent via the Meta template{' '}
+              <em>pending_bill_payment_reminder</em>{' '}once approved and{' '}
+              <code className="text-[11px] bg-amber-100 dark:bg-amber-900/30 px-1 rounded">WHATSAPP_SEND_ENABLED=true</code>.
+              Editing this text does not change the Meta template or send any messages.
+            </p>
+          </div>
           <button
             onClick={() => setShowPreview(!showPreview)}
             className="btn-ghost py-1.5 px-3 text-xs"
@@ -148,8 +158,12 @@ const Settings = () => {
         </div>
         <div className="p-6 space-y-4">
           <div className="flex flex-wrap gap-1.5 mb-1">
-            {['{partyName}', '{balanceAmount}', '{billNumber}', '{businessName}', '{dueDate}', '{billAmount}'].map(v => (
-              <span key={v} className="px-2 py-0.5 rounded-md bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-[11px] font-mono font-medium cursor-pointer hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
+            {/* Primary placeholders — used in the current Meta-aligned default template */}
+            {['{partyName}', '{billNumber}', '{balanceAmount}', '{dueDate}'].map(v => (
+              <span
+                key={v}
+                className="px-2 py-0.5 rounded-md bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-[11px] font-mono font-medium cursor-pointer hover:bg-primary-100 dark:hover:bg-primary-900/40 transition-colors"
+                title={`Click to insert ${v} at cursor`}
                 onClick={() => {
                   const el = document.getElementById('template-textarea');
                   if (el) {
@@ -158,6 +172,28 @@ const Settings = () => {
                     const text = settings.defaultReminderTemplate;
                     const newText = text.substring(0, start) + v + text.substring(end);
                     setSettings({ ...settings, defaultReminderTemplate: newText });
+                    setTimeout(() => { el.focus(); el.setSelectionRange(start + v.length, start + v.length); }, 0);
+                  }
+                }}
+              >
+                {v}
+              </span>
+            ))}
+            {/* Legacy placeholders — for custom templates that use them */}
+            {['{businessName}', '{billAmount}'].map(v => (
+              <span
+                key={v}
+                className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-dark-700 text-gray-400 dark:text-gray-500 text-[11px] font-mono font-medium cursor-pointer hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors"
+                title={`Legacy placeholder — click to insert ${v}`}
+                onClick={() => {
+                  const el = document.getElementById('template-textarea');
+                  if (el) {
+                    const start = el.selectionStart;
+                    const end = el.selectionEnd;
+                    const text = settings.defaultReminderTemplate;
+                    const newText = text.substring(0, start) + v + text.substring(end);
+                    setSettings({ ...settings, defaultReminderTemplate: newText });
+                    setTimeout(() => { el.focus(); el.setSelectionRange(start + v.length, start + v.length); }, 0);
                   }
                 }}
               >
@@ -170,7 +206,7 @@ const Settings = () => {
             value={settings.defaultReminderTemplate}
             onChange={(e) => setSettings({ ...settings, defaultReminderTemplate: e.target.value })}
             className="input-field font-mono text-sm"
-            rows={6}
+            rows={10}
             placeholder="Enter reminder message template..."
           />
 

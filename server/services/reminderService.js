@@ -1,11 +1,186 @@
+'use strict';
+
 const ReminderHistory = require('../models/ReminderHistory');
 const Bill = require('../models/Bill');
 const Party = require('../models/Party');
 const Settings = require('../models/Settings');
-const twilio = require('twilio');
+
+// ─────────────────────────────────────────────
+//  Phone number normalisation (India-first)
+// ─────────────────────────────────────────────
 
 /**
- * Generate reminder message using template
+ * Normalise a phone number to E.164 format (+91XXXXXXXXXX).
+ * Returns null if the number cannot be made valid.
+ * @param {string} raw
+ * @returns {string|null}
+ */
+const normalisePhone = (raw) => {
+  if (!raw || typeof raw !== 'string') return null;
+
+  // Strip everything except digits and a leading +
+  let digits = raw.replace(/[^\d+]/g, '');
+
+  // Remove leading +
+  if (digits.startsWith('+')) {
+    digits = digits.slice(1);
+  }
+
+  // 10-digit Indian number → prepend country code 91
+  if (/^\d{10}$/.test(digits)) {
+    digits = '91' + digits;
+  }
+
+  // 12-digit number starting with 91 → valid Indian E.164
+  if (/^91\d{10}$/.test(digits)) {
+    return '+' + digits;
+  }
+
+  // Already an international number of 7–15 digits
+  if (/^\d{7,15}$/.test(digits)) {
+    return '+' + digits;
+  }
+
+  return null;
+};
+
+// ─────────────────────────────────────────────
+//  Meta Cloud API configuration check
+// ─────────────────────────────────────────────
+
+/**
+ * Returns the validated Meta API config or throws a descriptive error.
+ * Never logs credential values.
+ */
+const getMetaConfig = () => {
+  const accessToken   = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const apiVersion    = process.env.WHATSAPP_API_VERSION   || 'v26.0';
+  const templateName  = process.env.WHATSAPP_TEMPLATE_NAME;
+  const templateLang  = process.env.WHATSAPP_TEMPLATE_LANGUAGE;
+  const sendEnabled   = process.env.WHATSAPP_SEND_ENABLED === 'true';
+
+  const missing = [];
+  if (!accessToken)   missing.push('WHATSAPP_ACCESS_TOKEN');
+  if (!phoneNumberId) missing.push('WHATSAPP_PHONE_NUMBER_ID');
+  if (!templateName)  missing.push('WHATSAPP_TEMPLATE_NAME');
+  if (!templateLang)  missing.push('WHATSAPP_TEMPLATE_LANGUAGE');
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Meta WhatsApp configuration incomplete. Missing: ${missing.join(', ')}`
+    );
+  }
+
+  return { accessToken, phoneNumberId, apiVersion, templateName, templateLang, sendEnabled };
+};
+
+// ─────────────────────────────────────────────
+//  Meta Cloud API sender
+// ─────────────────────────────────────────────
+
+/**
+ * Send a single WhatsApp template message via Meta Cloud API.
+ *
+ * Template: pending_bill_payment_reminder
+ *   {{1}} → partyName
+ *   {{2}} → billNumber
+ *   {{3}} → balanceAmount (formatted)
+ *   {{4}} → dueDate (formatted)
+ *
+ * @param {object} bill  — Mongoose Bill document
+ * @param {string} toPhone — normalised E.164 phone number
+ * @returns {{ wamid: string|null, error: string|null }}
+ */
+const sendMetaTemplateMessage = async (bill, toPhone) => {
+  const config = getMetaConfig();
+
+  if (!config.sendEnabled) {
+    const err = new Error(
+      'WhatsApp sending is disabled. Set WHATSAPP_SEND_ENABLED=true after the template is ' +
+      'approved and production configuration is verified.'
+    );
+    err.code = 'SEND_DISABLED';
+    throw err;
+  }
+
+  const url = `https://graph.facebook.com/${config.apiVersion}/${config.phoneNumberId}/messages`;
+
+  const formattedAmount = typeof bill.balanceAmount === 'number'
+    ? bill.balanceAmount.toLocaleString('en-IN')
+    : String(bill.balanceAmount || '0');
+
+  const formattedDate = bill.dueDate
+    ? new Date(bill.dueDate).toLocaleDateString('en-IN')
+    : 'N/A';
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    to: toPhone,
+    type: 'template',
+    template: {
+      name: config.templateName,
+      language: { code: config.templateLang },
+      components: [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: bill.partyName },
+            { type: 'text', text: bill.billNumber },
+            { type: 'text', text: formattedAmount },
+            { type: 'text', text: formattedDate }
+          ]
+        }
+      ]
+    }
+  };
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.accessToken}`
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000) // 15-second timeout
+    });
+  } catch (networkErr) {
+    throw new Error(`Network error contacting Meta API: ${networkErr.message}`);
+  }
+
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error(`Meta API returned non-JSON response (HTTP ${response.status})`);
+  }
+
+  if (!response.ok) {
+    // Surface Meta's error detail without logging credentials
+    const metaErr = body?.error;
+    const msg = metaErr
+      ? `Meta API error ${metaErr.code}: ${metaErr.message}` +
+        (metaErr.error_data?.details ? ` — ${metaErr.error_data.details}` : '')
+      : `Meta API HTTP ${response.status}`;
+    const err = new Error(msg);
+    err.metaError = metaErr || null;
+    throw err;
+  }
+
+  // Successful acceptance — extract wamid
+  const wamid = body?.messages?.[0]?.id || null;
+  return { wamid };
+};
+
+// ─────────────────────────────────────────────
+//  Preview message generator (local template)
+// ─────────────────────────────────────────────
+
+/**
+ * Generate a human-readable preview using the merchant's editable template.
+ * This is used only for UI preview — actual sends use the approved Meta template.
  */
 const generateReminderMessage = async (bill, merchantId) => {
   let settings = await Settings.findOne({ merchantId });
@@ -13,93 +188,84 @@ const generateReminderMessage = async (bill, merchantId) => {
     settings = await Settings.create({ merchantId });
   }
 
-  let template = settings.defaultReminderTemplate;
-  const message = template
-    .replace(/{partyName}/g, bill.partyName)
-    .replace(/{balanceAmount}/g, bill.balanceAmount.toLocaleString('en-IN'))
-    .replace(/{billNumber}/g, bill.billNumber)
-    .replace(/{businessName}/g, settings.businessName)
-    .replace(/{dueDate}/g, bill.dueDate ? new Date(bill.dueDate).toLocaleDateString('en-IN') : 'N/A')
-    .replace(/{billAmount}/g, bill.billAmount.toLocaleString('en-IN'));
-
-  return message;
+  const template = settings.defaultReminderTemplate || '';
+  return template
+    .replace(/{partyName}/g,     bill.partyName)
+    .replace(/{balanceAmount}/g, (bill.balanceAmount || 0).toLocaleString('en-IN'))
+    .replace(/{billNumber}/g,    bill.billNumber)
+    .replace(/{businessName}/g,  settings.businessName || '')
+    .replace(/{dueDate}/g,       bill.dueDate ? new Date(bill.dueDate).toLocaleDateString('en-IN') : 'N/A')
+    .replace(/{billAmount}/g,    (bill.billAmount || 0).toLocaleString('en-IN'));
 };
 
+// ─────────────────────────────────────────────
+//  Public: send single reminder
+// ─────────────────────────────────────────────
+
 /**
- * Simulate sending a reminder (WhatsApp/SMS)
- * In production, this would integrate with Twilio/WhatsApp Business API
+ * Send a WhatsApp reminder for a single bill.
+ * Records outcome in ReminderHistory regardless of send result.
+ * Only updates bill.reminderSent when Meta accepted the message.
+ *
+ * @param {string} billId
+ * @param {string} reminderType
+ * @param {string} merchantId
  */
 const sendReminder = async (billId, reminderType = 'WhatsApp', merchantId) => {
   const bill = await Bill.findOne({ _id: billId, merchantId });
   if (!bill) throw new Error('Bill not found');
 
   const party = await Party.findOne({ merchantId, partyName: bill.partyName });
-  const phoneNumber = party?.phoneNumber || '';
+  const rawPhone = party?.phoneNumber || '';
 
-  const message = await generateReminderMessage(bill, merchantId);
+  // Generate preview message for history log
+  const previewMessage = await generateReminderMessage(bill, merchantId);
 
-  let isSuccess = false;
+  let isSuccess    = false;
   let errorMessage = '';
+  let wamid        = null;
+  let metaError    = null;
 
   try {
-    if (!phoneNumber) {
+    if (!rawPhone) {
       throw new Error('Phone number is missing for this party');
     }
 
-    // Normalize phone number
-    let formattedPhone = phoneNumber.replace(/\D/g, '');
-    
-    // Convert internally to standard E.164
-    if (formattedPhone.length === 10) {
-      formattedPhone = '91' + formattedPhone;
-    }
-    
-    formattedPhone = '+' + formattedPhone;
-
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const twilioNumber = process.env.TWILIO_WHATSAPP_NUMBER;
-
-    if (!accountSid || !authToken || !twilioNumber) {
-        throw new Error('Twilio credentials are not configured in .env');
+    const normalised = normalisePhone(rawPhone);
+    if (!normalised) {
+      throw new Error(`Invalid phone number for party "${bill.partyName}": "${rawPhone}"`);
     }
 
-    const client = twilio(accountSid, authToken);
-
-    let fromNumber = twilioNumber;
-    if (!fromNumber.startsWith('whatsapp:')) {
-      fromNumber = `whatsapp:${fromNumber}`;
-    }
-
-    await client.messages.create({
-        from: fromNumber,
-        to: `whatsapp:${formattedPhone}`,
-        body: message
-    });
-    
+    const result = await sendMetaTemplateMessage(bill, normalised);
+    wamid     = result.wamid;
     isSuccess = true;
   } catch (err) {
-    isSuccess = false;
-    errorMessage = err.message || 'Unknown Error';
-    console.error('Twilio Error:', err);
+    isSuccess    = false;
+    errorMessage = err.message || 'Unknown error';
+    metaError    = err.metaError || null;
+    // Do not log the full error object to avoid leaking config info
+    console.error('[reminderService] Send failed for bill', billId, ':', errorMessage);
   }
 
+  // Persist outcome — always create a history record
   const reminder = await ReminderHistory.create({
     merchantId,
-    billId: bill._id,
-    billNumber: bill.billNumber,
-    partyName: bill.partyName,
-    phoneNumber,
-    message,
+    billId:        bill._id,
+    billNumber:    bill.billNumber,
+    partyName:     bill.partyName,
+    phoneNumber:   rawPhone,
+    message:       previewMessage,
     reminderType,
-    status: isSuccess ? 'Sent' : 'Failed',
-    errorDetails: errorMessage || undefined,
-    sentAt: new Date()
+    status:        isSuccess ? 'Accepted' : 'Failed',
+    wamid:         wamid || undefined,
+    errorDetails:  errorMessage || undefined,
+    metaError:     metaError ? JSON.stringify(metaError) : undefined,
+    sentAt:        new Date()
   });
 
-  // Update bill reminder status only if successful
+  // Update bill only after Meta accepted the message
   if (isSuccess) {
-    bill.reminderSent = true;
+    bill.reminderSent    = true;
     bill.lastReminderDate = new Date();
     await bill.save();
   }
@@ -108,13 +274,23 @@ const sendReminder = async (billId, reminderType = 'WhatsApp', merchantId) => {
     success: isSuccess,
     reminder,
     message: isSuccess
-      ? `Reminder sent via ${reminderType} to ${bill.partyName}`
+      ? `WhatsApp reminder accepted by Meta for ${bill.partyName}` +
+        (wamid ? ` (wamid: ${wamid})` : '')
       : errorMessage
   };
 };
 
+// ─────────────────────────────────────────────
+//  Public: send bulk reminders
+// ─────────────────────────────────────────────
+
 /**
- * Send bulk reminders for multiple bills
+ * Send reminders for multiple bills.
+ * Returns an array of per-bill outcomes; partial failures are reported individually.
+ *
+ * @param {string[]} billIds
+ * @param {string}   reminderType
+ * @param {string}   merchantId
  */
 const sendBulkReminders = async (billIds, reminderType = 'WhatsApp', merchantId) => {
   const results = [];
@@ -123,10 +299,16 @@ const sendBulkReminders = async (billIds, reminderType = 'WhatsApp', merchantId)
       const result = await sendReminder(billId, reminderType, merchantId);
       results.push(result);
     } catch (error) {
-      results.push({ success: false, message: error.message });
+      results.push({ success: false, message: error.message, billId });
     }
   }
   return results;
 };
 
-module.exports = { generateReminderMessage, sendReminder, sendBulkReminders };
+module.exports = {
+  normalisePhone,
+  getMetaConfig,
+  generateReminderMessage,
+  sendReminder,
+  sendBulkReminders
+};

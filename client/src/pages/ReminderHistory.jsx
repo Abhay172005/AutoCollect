@@ -60,7 +60,10 @@ const ReminderHistory = () => {
             className="input-field w-full sm:w-40"
           >
             <option value="">All Status</option>
+            <option value="Accepted">Accepted</option>
             <option value="Sent">Sent</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Read">Read</option>
             <option value="Failed">Failed</option>
             <option value="Pending">Pending</option>
           </select>
@@ -111,7 +114,17 @@ const ReminderHistory = () => {
                       <span className="badge-info">{r.reminderType}</span>
                     </td>
                     <td className="table-cell">
-                      <span className={r.status === 'Sent' ? 'badge-success' : r.status === 'Failed' ? 'badge-danger' : 'badge-warning'}>
+                      <span className={
+                        r.status === 'Sent' || r.status === 'Accepted'
+                          ? 'badge-success'
+                          : r.status === 'Delivered'
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2.5 py-1 rounded-full text-xs font-semibold'
+                          : r.status === 'Read'
+                          ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 px-2.5 py-1 rounded-full text-xs font-semibold'
+                          : r.status === 'Failed'
+                          ? 'badge-danger'
+                          : 'badge-warning'
+                      }>
                         {r.status}
                       </span>
                     </td>
@@ -165,6 +178,12 @@ const ReminderHistory = () => {
                 <p className="text-sm text-gray-500">To: <strong className="text-gray-900 dark:text-white">{messageModal.partyName}</strong></p>
                 <p className="text-sm text-gray-500">Via: {messageModal.reminderType} · {messageModal.phoneNumber || 'No phone'}</p>
                 <p className="text-sm text-gray-500">Sent: {new Date(messageModal.sentAt).toLocaleString('en-IN')}</p>
+                {messageModal.wamid && (
+                  <p className="text-xs text-gray-400 font-mono break-all">wamid: {messageModal.wamid}</p>
+                )}
+                {messageModal.errorDetails && (
+                  <p className="text-xs text-red-500 mt-1">Error: {messageModal.errorDetails}</p>
+                )}
               </div>
               <div className="bg-gray-50 dark:bg-dark-900 rounded-xl p-4">
                 <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">{messageModal.message}</pre>

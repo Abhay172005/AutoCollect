@@ -43,24 +43,15 @@ const Reminders = () => {
     setSending(true);
     try {
       const res = await reminderService.sendReminder({ billId: previewModal._id });
-      if (res.data.data && res.data.data.success === false) {
-        toast.error(
-          <div className="flex flex-col gap-1">
-            <strong>❌ WhatsApp Reminder Failed</strong>
-            <span className="text-sm">Please verify that the recipient has joined the Twilio Sandbox.</span>
-          </div>,
-          { duration: 6000 }
-        );
-      } else {
-        toast.success('✅ WhatsApp Reminder Sent Successfully');
-        setPreviewModal(null);
-        fetchDueBills();
-      }
+      toast.success('✅ WhatsApp reminder accepted by Meta');
+      setPreviewModal(null);
+      fetchDueBills();
     } catch (err) {
+      const detail = err?.response?.data?.message || 'Please check the WhatsApp configuration and try again.';
       toast.error(
         <div className="flex flex-col gap-1">
           <strong>❌ WhatsApp Reminder Failed</strong>
-          <span className="text-sm">Please verify that the recipient has joined the Twilio Sandbox.</span>
+          <span className="text-sm">{detail}</span>
         </div>,
         { duration: 6000 }
       );

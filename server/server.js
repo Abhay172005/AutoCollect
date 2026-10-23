@@ -1,11 +1,13 @@
+'use strict';
+
 const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
+const cors    = require('cors');
+const path    = require('path');
+const fs      = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const connectDB = require('./config/db');
-const errorHandler = require('./middleware/errorHandler');
+const connectDB      = require('./config/db');
+const errorHandler   = require('./middleware/errorHandler');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -18,21 +20,44 @@ connectDB();
 
 const app = express();
 
-// Middleware
+// ── Raw-body capture for webhook signature validation ─────────────────────
+// We must capture the raw bytes BEFORE express.json() parses them.
+// Only the webhook path needs this; all other routes use the normal JSON parser.
+app.use('/api/webhooks', (req, res, next) => {
+  express.raw({ type: 'application/json', limit: '1mb' })(req, res, (err) => {
+    if (err) return next(err);
+    // Expose raw body on req.rawBody for use in the webhook controller
+    req.rawBody = req.body; // Buffer at this point
+    // Also parse to object so controller can read req.body as JSON
+    if (Buffer.isBuffer(req.body)) {
+      try {
+        req.body = JSON.parse(req.body.toString('utf8'));
+      } catch {
+        req.body = {};
+      }
+    }
+    next();
+  });
+});
+
+// ── Standard middleware ───────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/upload', require('./routes/upload'));
+// ── API Routes ────────────────────────────────────────────────────────────
+app.use('/api/auth',           require('./routes/auth'));
+app.use('/api/upload',         require('./routes/upload'));
 app.use('/api/upload-history', require('./routes/uploadHistory'));
-app.use('/api/bills', require('./routes/bills'));
-app.use('/api/parties', require('./routes/parties'));
-app.use('/api/reminders', require('./routes/reminders'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/dashboard', require('./routes/dashboard'));
-app.use('/api/settings', require('./routes/settings'));
+app.use('/api/bills',          require('./routes/bills'));
+app.use('/api/parties',        require('./routes/parties'));
+app.use('/api/reminders',      require('./routes/reminders'));
+app.use('/api/reports',        require('./routes/reports'));
+app.use('/api/dashboard',      require('./routes/dashboard'));
+app.use('/api/settings',       require('./routes/settings'));
+
+// ── Meta WhatsApp webhook (must be before the SPA catch-all) ─────────────
+app.use('/api/webhooks',       require('./routes/webhooks'));
 
 const { protect } = require('./middleware/auth');
 
@@ -42,23 +67,23 @@ app.get('/api/search', protect, async (req, res) => {
     const { q } = req.query;
     if (!q) return res.json({ success: true, data: { bills: [], parties: [] } });
 
-    const Bill = require('./models/Bill');
+    const Bill  = require('./models/Bill');
     const Party = require('./models/Party');
 
     const [bills, parties] = await Promise.all([
       Bill.find({
         merchantId: req.user.id,
         $or: [
-          { partyName: { $regex: q, $options: 'i' } },
+          { partyName:  { $regex: q, $options: 'i' } },
           { billNumber: { $regex: q, $options: 'i' } }
         ]
       }).limit(10),
       Party.find({
         merchantId: req.user.id,
         $or: [
-          { partyName: { $regex: q, $options: 'i' } },
+          { partyName:   { $regex: q, $options: 'i' } },
           { phoneNumber: { $regex: q, $options: 'i' } },
-          { city: { $regex: q, $options: 'i' } }
+          { city:        { $regex: q, $options: 'i' } }
         ]
       }).limit(10)
     ]);
@@ -74,14 +99,13 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'AutoCollect API is running', timestamp: new Date() });
 });
 
-// --- Serve Frontend in Production ---
-// Serve static files from the React app build directory
+// ── Serve Frontend in Production ──────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '../client/dist')));
 
-// Error handler (for API routes)
+// Error handler (for API routes — must be before SPA catch-all)
 app.use(errorHandler);
 
-// Catch-all: serve React's index.html for any non-API route (SPA client-side routing)
+// SPA catch-all: serve React's index.html for any non-API route
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });

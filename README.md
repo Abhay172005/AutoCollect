@@ -75,9 +75,14 @@ PORT=5000
 MONGODB_URI=mongodb://localhost:27017/autocollect
 JWT_SECRET=your_jwt_secret_here
 JWT_EXPIRE=7d
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_token
-TWILIO_PHONE_NUMBER=your_twilio_number
+WHATSAPP_ACCESS_TOKEN=your_meta_system_user_access_token
+WHATSAPP_PHONE_NUMBER_ID=1381154951748220
+WHATSAPP_API_VERSION=v26.0
+WHATSAPP_TEMPLATE_NAME=pending_bill_payment_reminder
+WHATSAPP_TEMPLATE_LANGUAGE=en
+WHATSAPP_VERIFY_TOKEN=your_random_webhook_verify_token
+META_APP_SECRET=your_meta_app_secret
+WHATSAPP_SEND_ENABLED=false
 ```
 
 ### 2. Install Dependencies

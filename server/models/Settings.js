@@ -1,5 +1,21 @@
 const mongoose = require('mongoose');
 
+// The OLD default template (pre-Meta-migration). Used by settingsController
+// to detect documents that still carry the original default and migrate them.
+const OLD_DEFAULT_TEMPLATE =
+  'Dear {partyName},\n\nYour payment of \u20b9{balanceAmount} for Invoice {billNumber} is due.\n\nKindly arrange payment.\n\nRegards,\n{businessName}';
+
+// The current default template mirrors the approved Meta WhatsApp template body
+// (pending_bill_payment_reminder) using local placeholder syntax for preview.
+// The signature is fixed to "Amar Steel Industries" — do NOT replace with {businessName}.
+const DEFAULT_REMINDER_TEMPLATE =
+  'Dear {partyName},\n\n' +
+  'This is a payment reminder regarding invoice {billNumber}.\n\n' +
+  'Our records show an outstanding balance of \u20b9{balanceAmount}, due on {dueDate}.\n\n' +
+  'If you have already made the payment, please disregard this message. ' +
+  'If you have any questions about this invoice, please contact us at +91 9417204939.\n\n' +
+  'Regards,\nAmar Steel Industries';
+
 const settingsSchema = new mongoose.Schema({
   merchantId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -15,7 +31,7 @@ const settingsSchema = new mongoose.Schema({
   },
   defaultReminderTemplate: {
     type: String,
-    default: 'Dear {partyName},\n\nYour payment of ₹{balanceAmount} for Invoice {billNumber} is due.\n\nKindly arrange payment.\n\nRegards,\n{businessName}'
+    default: DEFAULT_REMINDER_TEMPLATE
   },
   defaultCreditDays: {
     type: Number,
@@ -24,7 +40,7 @@ const settingsSchema = new mongoose.Schema({
   adminEmail: {
     type: String
   },
-  // Future WhatsApp Business API Integration Placeholder
+  // Meta WhatsApp Business API fields (managed via env vars, not stored in DB)
   whatsappAccountId: {
     type: String
   },
@@ -44,3 +60,5 @@ const settingsSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Settings', settingsSchema);
+module.exports.OLD_DEFAULT_TEMPLATE = OLD_DEFAULT_TEMPLATE;
+module.exports.DEFAULT_REMINDER_TEMPLATE = DEFAULT_REMINDER_TEMPLATE;
