@@ -3,6 +3,21 @@
 const crypto = require('crypto');
 const ReminderHistory = require('../models/ReminderHistory');
 
+/**
+ * Detect missing or recognizable placeholder secrets.
+ * A real secret must be a non-empty string that does not match common placeholder patterns.
+ * @param {string|undefined} secret
+ * @returns {boolean}
+ */
+const isPlaceholderSecret = (secret) => {
+  if (!secret || typeof secret !== 'string') return true;
+  const trimmed = secret.trim();
+  if (trimmed.length === 0) return true;
+  if (/^(your_|replace_|change_|todo|placeholder|<|\*)/i.test(trimmed)) return true;
+  if (['your_meta_app_secret', 'replace_with_a_random_secret_string', 'app_secret_here'].includes(trimmed.toLowerCase())) return true;
+  return false;
+};
+
 // ─────────────────────────────────────────────
 //  GET /api/webhooks/whatsapp
 //  Meta webhook verification
@@ -12,7 +27,7 @@ const ReminderHistory = require('../models/ReminderHistory');
  * Meta calls this endpoint to verify the webhook subscription.
  * We validate the mode and the verify token before echoing the challenge.
  */
-exports.verifyWebhook = (req, res) => {
+const verifyWebhook = (req, res) => {
   const mode        = req.query['hub.mode'];
   const token       = req.query['hub.verify_token'];
   const challenge   = req.query['hub.challenge'];
@@ -26,8 +41,8 @@ exports.verifyWebhook = (req, res) => {
   }
 
   const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN;
-  if (!expectedToken) {
-    console.error('[webhook] WHATSAPP_VERIFY_TOKEN is not configured');
+  if (isPlaceholderSecret(expectedToken)) {
+    console.error('[webhook] WHATSAPP_VERIFY_TOKEN is not configured or contains a placeholder');
     return res.status(500).send('Webhook not configured');
   }
 
@@ -55,14 +70,12 @@ exports.verifyWebhook = (req, res) => {
  * Validate X-Hub-Signature-256 and process incoming status updates.
  * Raw body must be captured BEFORE any JSON parsing — see server.js.
  */
-exports.handleWebhookEvent = async (req, res) => {
+const handleWebhookEvent = async (req, res) => {
   // ── 1. Signature validation ───────────────────────────────────────────────
   const appSecret = process.env.META_APP_SECRET;
-  if (!appSecret) {
-    console.error('[webhook] META_APP_SECRET is not configured');
-    // Return 200 to prevent Meta from retrying indefinitely during setup,
-    // but log the configuration gap.
-    return res.sendStatus(200);
+  if (isPlaceholderSecret(appSecret)) {
+    console.error('[webhook] META_APP_SECRET is not configured or contains a placeholder');
+    return res.status(500).json({ error: 'Webhook signature verification is not configured on server' });
   }
 
   const sigHeader = req.headers['x-hub-signature-256'];
@@ -128,9 +141,28 @@ exports.handleWebhookEvent = async (req, res) => {
 
 /**
  * Map a Meta status event to a ReminderHistory update.
- * Handles duplicates idempotently (re-applying the same status is a no-op).
  *
- * @param {{ id: string, status: string, timestamp: string }} statusObj
+ * Status Mapping & Terminology:
+ * - Meta 'sent' → 'Accepted': Meta server received and queued/dispatched the message.
+ *   This represents API acceptance / queueing, distinct from handset delivery.
+ * - Meta 'delivered' → 'Delivered': Message reached recipient handset (records deliveredAt).
+ * - Meta 'read' → 'Read': Recipient opened the message (records readAt).
+ * - Meta 'failed' → 'Failed': Message failed dispatch or delivery (records failedAt + metaError).
+ *
+ * State & Timestamp Resolution Policy:
+ * 1. Provider Timestamps: Uses event timestamp (statusObj.timestamp in seconds) to evaluate
+ *    event freshness and prevent stale out-of-order events from overwriting newer states.
+ * 2. Idempotency: Duplicate events for the same status are no-ops, avoiding redundant writes.
+ * 3. Read-before-Delivered: If a 'read' event arrives before 'delivered', status advances to 'Read'.
+ *    When the delayed 'delivered' event arrives subsequently, 'deliveredAt' is backfilled without
+ *    downgrading the 'Read' status.
+ * 4. Stale Failure / Out-of-order: If a message is already confirmed 'Delivered' or 'Read',
+ *    a delayed or stale 'failed' event is dropped.
+ * 5. Recovery / Retry: If a message is recorded as 'Failed', but a subsequent 'delivered' or
+ *    'read' event arrives with a newer provider timestamp than the recorded failure, the newer
+ *    successful state is recorded.
+ *
+ * @param {{ id: string, status: string, timestamp: string, errors?: Array }} statusObj
  */
 const processStatusUpdate = async (statusObj) => {
   const { id: wamid, status, timestamp } = statusObj || {};
@@ -139,43 +171,123 @@ const processStatusUpdate = async (statusObj) => {
 
   // Map Meta statuses to our schema values
   const statusMap = {
-    sent:      'Accepted',  // Meta accepted & queued for delivery
-    delivered: 'Delivered',
-    read:      'Read',
-    failed:    'Failed'
+    sent:      'Accepted',  // Meta server dispatch / queueing (distinct from confirmed delivery)
+    delivered: 'Delivered', // Handset delivery
+    read:      'Read',      // User read receipt
+    failed:    'Failed'     // Failure
   };
 
   const mapped = statusMap[status];
   if (!mapped) return; // unknown status — ignore
 
-  const ts = timestamp ? new Date(parseInt(timestamp, 10) * 1000) : new Date();
-
-  const update = { status: mapped };
-  if (mapped === 'Delivered') update.deliveredAt = ts;
-  if (mapped === 'Read')      update.readAt      = ts;
-  if (mapped === 'Failed')    update.failedAt    = ts;
-
-  // Include errors from the webhook payload if present
-  if (statusObj.errors && statusObj.errors.length > 0) {
-    update.metaError = JSON.stringify(statusObj.errors);
-  }
-
-  // Idempotent update — only advance status (don't downgrade Read → Delivered, etc.)
   const record = await ReminderHistory.findOne({ wamid });
   if (!record) {
     // Message may have been sent before wamid tracking was deployed
     return;
   }
 
-  // Status advancement order: Accepted < Delivered < Read > Failed
-  const order = ['Accepted', 'Pending', 'Sent', 'Failed', 'Delivered', 'Read'];
-  const currentIdx = order.indexOf(record.status);
-  const newIdx     = order.indexOf(mapped);
+  // Parse provider event timestamp
+  const eventTime = timestamp ? parseInt(timestamp, 10) * 1000 : Date.now();
+  const ts = new Date(eventTime);
 
-  // Allow Failed at any point; otherwise only advance
-  if (mapped !== 'Failed' && currentIdx >= newIdx) {
-    return; // Already at or past this status — idempotent skip
+  // 1. Idempotency: exact duplicate status
+  if (record.status === mapped) {
+    // If deliveredAt is missing on a duplicate Delivered event, backfill it
+    if (mapped === 'Delivered' && !record.deliveredAt) {
+      await ReminderHistory.updateOne({ wamid }, { $set: { deliveredAt: ts } });
+    } else if (mapped === 'Read' && !record.readAt) {
+      await ReminderHistory.updateOne({ wamid }, { $set: { readAt: ts } });
+    }
+    return; // No redundant status update
   }
 
-  await ReminderHistory.updateOne({ wamid }, { $set: update });
+  // 2. Message is in 'Read' status (confirmed customer read receipt):
+  if (record.status === 'Read') {
+    // Read-before-delivered: if delivered event arrives late, record deliveredAt without downgrading status.
+    // If deliveredAt was missing or initialized to readAt, an earlier delivery timestamp corrects it.
+    if (mapped === 'Delivered') {
+      const currentDeliveredTime = record.deliveredAt ? record.deliveredAt.getTime() : null;
+      if (!currentDeliveredTime || eventTime < currentDeliveredTime) {
+        await ReminderHistory.updateOne({ wamid }, { $set: { deliveredAt: ts } });
+      }
+      return;
+    }
+    // Stale 'Accepted' or late 'Failed' must not overwrite confirmed Read state
+    return;
+  }
+
+  // 3. Message is in 'Delivered' status (confirmed handset delivery):
+  if (record.status === 'Delivered') {
+    if (mapped === 'Read') {
+      // Advance to Read
+      const update = { status: 'Read', readAt: ts };
+      await ReminderHistory.updateOne({ wamid }, { $set: update });
+      return;
+    }
+    // Stale 'Accepted' or delayed 'Failed' must not downgrade or overwrite confirmed delivery
+    return;
+  }
+
+  // 4. Message is in 'Failed' status:
+  if (record.status === 'Failed') {
+    // If a delivery/read event arrives with a provider timestamp NEWER than the failure,
+    // the provider recovered or retried successfully — advance to the newer state.
+    // Clear stale failure metadata so it does not contradict the new valid status.
+    const failedTime = record.failedAt ? record.failedAt.getTime() : 0;
+    if ((mapped === 'Delivered' || mapped === 'Read') && eventTime > failedTime) {
+      const update = { status: mapped };
+      if (mapped === 'Delivered') update.deliveredAt = ts;
+      if (mapped === 'Read') {
+        update.readAt = ts;
+        if (!record.deliveredAt) update.deliveredAt = ts;
+      }
+      await ReminderHistory.updateOne(
+        { wamid },
+        {
+          $set: update,
+          $unset: { failedAt: 1, metaError: 1, errorDetails: 1 }
+        }
+      );
+      return;
+    }
+    // Stale or duplicate events: ignore
+    return;
+  }
+
+  // 5. Message is in 'Accepted', 'Pending', or legacy 'Sent':
+  // Drop stale events older than initial record creation if timestamp provided
+  const recordSentTime = record.sentAt ? record.sentAt.getTime() : 0;
+  if (recordSentTime > 0 && eventTime < recordSentTime && mapped === 'Accepted') {
+    return;
+  }
+
+  const update = { status: mapped };
+  if (mapped === 'Delivered') update.deliveredAt = ts;
+  if (mapped === 'Read') {
+    update.readAt = ts;
+    // If read arrives before delivered, also record deliveredAt as of this time
+    if (!record.deliveredAt) update.deliveredAt = ts;
+  }
+  if (mapped === 'Failed') {
+    update.failedAt = ts;
+    if (statusObj.errors && statusObj.errors.length > 0) {
+      update.metaError = JSON.stringify(statusObj.errors);
+    }
+  }
+
+  const updateDoc = { $set: update };
+  if (mapped === 'Delivered' || mapped === 'Read') {
+    if (record.failedAt || record.metaError || record.errorDetails) {
+      updateDoc.$unset = { failedAt: 1, metaError: 1, errorDetails: 1 };
+    }
+  }
+
+  await ReminderHistory.updateOne({ wamid }, updateDoc);
+};
+
+module.exports = {
+  isPlaceholderSecret,
+  verifyWebhook,
+  handleWebhookEvent,
+  processStatusUpdate
 };

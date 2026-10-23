@@ -102,6 +102,32 @@ test('normalisePhone — international non-Indian number passes through', () => 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  1b. Meta recipient formatting (no leading +)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('toMetaRecipient — strips leading plus from Indian E.164 number', () => {
+  const { toMetaRecipient } = freshService();
+  assert.equal(toMetaRecipient('+919876543210'), '919876543210');
+});
+
+test('toMetaRecipient — strips leading plus from international E.164 number', () => {
+  const { toMetaRecipient } = freshService();
+  assert.equal(toMetaRecipient('+12025550199'), '12025550199');
+});
+
+test('toMetaRecipient — strips leading 00 if present', () => {
+  const { toMetaRecipient } = freshService();
+  assert.equal(toMetaRecipient('00919876543210'), '919876543210');
+});
+
+test('toMetaRecipient — returns empty string for null, undefined, or empty', () => {
+  const { toMetaRecipient } = freshService();
+  assert.equal(toMetaRecipient(null), '');
+  assert.equal(toMetaRecipient(undefined), '');
+  assert.equal(toMetaRecipient(''), '');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  2. Configuration validation
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -335,8 +361,80 @@ test('verifyWebhook — rejects with 400 when hub.mode missing', () => {
 //  6. Webhook signature validation
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('handleWebhookEvent — rejects with 403 on invalid signature', async () => {
-  process.env.META_APP_SECRET = 'my-app-secret';
+test('isPlaceholderSecret — detects missing, empty, or placeholder secrets', () => {
+  const { isPlaceholderSecret } = require('../controllers/webhookController');
+  assert.equal(isPlaceholderSecret(undefined), true);
+  assert.equal(isPlaceholderSecret(''), true);
+  assert.equal(isPlaceholderSecret('   '), true);
+  assert.equal(isPlaceholderSecret('your_meta_app_secret'), true);
+  assert.equal(isPlaceholderSecret('replace_with_a_random_secret_string'), true);
+  assert.equal(isPlaceholderSecret('TODO_ADD_SECRET'), true);
+  assert.equal(isPlaceholderSecret('<insert_secret_here>'), true);
+
+  // Real secret should NOT be detected as placeholder
+  assert.equal(isPlaceholderSecret('d8e8fca2dc0f896fd7cb4cb0031ba249'), false);
+  assert.equal(isPlaceholderSecret('my-real-production-secret-12345'), false);
+});
+
+test('verifyWebhook — returns 500 when WHATSAPP_VERIFY_TOKEN is a placeholder', () => {
+  process.env.WHATSAPP_VERIFY_TOKEN = 'your_verify_token_here';
+
+  const key = require.resolve('../controllers/webhookController');
+  delete require.cache[key];
+  const { verifyWebhook } = require('../controllers/webhookController');
+
+  const req = {
+    query: {
+      'hub.mode':         'subscribe',
+      'hub.verify_token': 'your_verify_token_here',
+      'hub.challenge':    'abc123'
+    }
+  };
+
+  let statusCode;
+  const res = {
+    status: (code) => { statusCode = code; return res; },
+    send: () => res
+  };
+
+  verifyWebhook(req, res);
+  assert.equal(statusCode, 500);
+});
+
+test('handleWebhookEvent — returns 500 when META_APP_SECRET is missing or placeholder', async () => {
+  const key = require.resolve('../controllers/webhookController');
+  delete require.cache[key];
+  const { handleWebhookEvent } = require('../controllers/webhookController');
+
+  // Test with placeholder secret
+  process.env.META_APP_SECRET = 'your_meta_app_secret';
+
+  const rawBody = Buffer.from('{"object":"whatsapp_business_account","entry":[]}');
+  const req = {
+    headers: { 'x-hub-signature-256': 'sha256=123456' },
+    rawBody,
+    body: JSON.parse(rawBody.toString())
+  };
+
+  let statusCode, responseJson;
+  const res = {
+    status: (c) => { statusCode = c; return res; },
+    json:   (j) => { responseJson = j; return res; },
+    sendStatus: (c) => { statusCode = c; }
+  };
+
+  await handleWebhookEvent(req, res);
+  assert.equal(statusCode, 500);
+  assert.ok(responseJson?.error?.includes('not configured'));
+
+  // Test with undefined secret
+  delete process.env.META_APP_SECRET;
+  await handleWebhookEvent(req, res);
+  assert.equal(statusCode, 500);
+});
+
+test('handleWebhookEvent — rejects with 403 on missing X-Hub-Signature-256 header', async () => {
+  process.env.META_APP_SECRET = 'real-secret-abc-123-xyz-456-789';
 
   const key = require.resolve('../controllers/webhookController');
   delete require.cache[key];
@@ -344,7 +442,32 @@ test('handleWebhookEvent — rejects with 403 on invalid signature', async () =>
 
   const rawBody = Buffer.from('{"object":"whatsapp_business_account","entry":[]}');
   const req = {
-    headers: { 'x-hub-signature-256': 'sha256=invalidhex' },
+    headers: {},
+    rawBody,
+    body: JSON.parse(rawBody.toString())
+  };
+
+  let statusCode;
+  const res = {
+    status: (c) => { statusCode = c; return res; },
+    json:   () => res,
+    sendStatus: (c) => { statusCode = c; }
+  };
+
+  await handleWebhookEvent(req, res);
+  assert.equal(statusCode, 403);
+});
+
+test('handleWebhookEvent — rejects with 403 on invalid signature', async () => {
+  process.env.META_APP_SECRET = 'real-secret-abc-123-xyz-456-789';
+
+  const key = require.resolve('../controllers/webhookController');
+  delete require.cache[key];
+  const { handleWebhookEvent } = require('../controllers/webhookController');
+
+  const rawBody = Buffer.from('{"object":"whatsapp_business_account","entry":[]}');
+  const req = {
+    headers: { 'x-hub-signature-256': 'sha256=invalidhexinvalidhexinvalidhexinvalidhexinvalidhexinvalidhex1234' },
     rawBody,
     body: JSON.parse(rawBody.toString())
   };
@@ -362,7 +485,7 @@ test('handleWebhookEvent — rejects with 403 on invalid signature', async () =>
 
 test('handleWebhookEvent — returns 200 on valid signature', async () => {
   const crypto = require('crypto');
-  const secret  = 'my-app-secret';
+  const secret  = 'real-secret-abc-123-xyz-456-789';
   process.env.META_APP_SECRET = secret;
 
   const key = require.resolve('../controllers/webhookController');
@@ -432,10 +555,15 @@ test('Meta API — accepted send returns wamid and does not report delivery', as
     // Verify the URL contains the configured phone number ID
     assert.ok(url.includes('1234567890'), 'URL must include phone number ID');
     assert.ok(url.includes('v26.0'),      'URL must use v26.0 API version');
+    assert.equal(opts.headers['Authorization'], 'Bearer test-token');
 
     const body = JSON.parse(opts.body);
     // Verify messaging_product
     assert.equal(body.messaging_product, 'whatsapp');
+    // Verify recipient format has NO leading +
+    assert.equal(body.to, '919876543210', 'Meta payload to must be digits only without leading +');
+    assert.ok(!body.to.startsWith('+'), 'Meta payload to must not start with +');
+
     // Verify template name and language
     assert.equal(body.template.name,           'pending_bill_payment_reminder');
     assert.equal(body.template.language.code,  'en');
@@ -444,9 +572,7 @@ test('Meta API — accepted send returns wamid and does not report delivery', as
     assert.equal(params.length, 4);
     assert.equal(params[0].text, 'Test Party');    // {{1}} partyName
     assert.equal(params[1].text, 'INV-001');        // {{2}} billNumber
-    // params[2] is formatted balanceAmount — just check it's truthy
     assert.ok(params[2].text, 'balanceAmount param must be present');
-    // params[3] is formatted dueDate
     assert.ok(params[3].text, 'dueDate param must be present');
 
     return {
@@ -454,18 +580,13 @@ test('Meta API — accepted send returns wamid and does not report delivery', as
       status: 200,
       json: async () => ({
         messaging_product: 'whatsapp',
-        contacts: [{ input: '+919876543210', wa_id: '919876543210' }],
+        contacts: [{ input: '919876543210', wa_id: '919876543210' }],
         messages: [{ id: expectedWamid }]
       })
     };
   };
 
-  // Import the sender directly via the module's exported getMetaConfig
-  // We test the internal flow by calling the service's exported sendMetaTemplateMessage
-  // indirectly — verify via getMetaConfig that the environment is correct,
-  // then construct and call fetch as the service would.
-  const { getMetaConfig } = freshService();
-  const config = getMetaConfig();
+  const { sendMetaTemplateMessage } = freshService();
 
   const bill = {
     partyName:     'Test Party',
@@ -475,43 +596,9 @@ test('Meta API — accepted send returns wamid and does not report delivery', as
   };
 
   const toPhone = '+919876543210';
-  const url = `https://graph.facebook.com/${config.apiVersion}/${config.phoneNumberId}/messages`;
-  const formattedAmount = bill.balanceAmount.toLocaleString('en-IN');
-  const formattedDate   = new Date(bill.dueDate).toLocaleDateString('en-IN');
+  const result = await sendMetaTemplateMessage(bill, toPhone);
 
-  const payload = {
-    messaging_product: 'whatsapp',
-    to: toPhone,
-    type: 'template',
-    template: {
-      name: config.templateName,
-      language: { code: config.templateLang },
-      components: [{
-        type: 'body',
-        parameters: [
-          { type: 'text', text: bill.partyName },
-          { type: 'text', text: bill.billNumber },
-          { type: 'text', text: formattedAmount },
-          { type: 'text', text: formattedDate }
-        ]
-      }]
-    }
-  };
-
-  const response = await global.fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.accessToken}` },
-    body: JSON.stringify(payload)
-  });
-
-  const data = await response.json();
-  const wamid = data?.messages?.[0]?.id;
-
-  assert.equal(wamid, expectedWamid, 'wamid must be extracted from messages[0].id');
-  assert.equal(response.ok, true, 'response.ok must be true for acceptance');
-  // Acceptance is NOT delivery — status should be Accepted, not Delivered
-  const expectedStatus = 'Accepted';
-  assert.notEqual(expectedStatus, 'Delivered', 'Accepted ≠ Delivered');
+  assert.equal(result.wamid, expectedWamid, 'wamid must be returned');
 
   delete global.fetch;
   restoreEnv();
@@ -581,41 +668,155 @@ test('Meta API — network timeout throws descriptive error', async () => {
 //  10. Webhook status advancement idempotency
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('Webhook — status advancement order: Delivered advances past Accepted', () => {
-  // Test the ordering logic extracted from webhookController's processStatusUpdate
-  const order = ['Accepted', 'Pending', 'Sent', 'Failed', 'Delivered', 'Read'];
+// ─────────────────────────────────────────────
+//  10. Webhook status advancement & state transition policy
+// ─────────────────────────────────────────────
 
-  const currentStatus = 'Accepted';
-  const newStatus     = 'Delivered';
+test('processStatusUpdate — strict state machine: transitions, idempotency, and edge cases', async () => {
+  const ReminderHistory = require('../models/ReminderHistory');
+  const { processStatusUpdate } = require('../controllers/webhookController');
 
-  const currentIdx = order.indexOf(currentStatus);
-  const newIdx     = order.indexOf(newStatus);
+  let currentRecord = null;
+  let updateCalled = false;
+  let updatePayload = null;
+  let unsetPayload = null;
 
-  // Delivered (4) > Accepted (0) → should advance
-  assert.ok(newIdx > currentIdx, 'Delivered must come after Accepted in advancement order');
-});
+  const origFindOne = ReminderHistory.findOne;
+  const origUpdateOne = ReminderHistory.updateOne;
 
-test('Webhook — idempotency: Read does not downgrade to Delivered', () => {
-  const order = ['Accepted', 'Pending', 'Sent', 'Failed', 'Delivered', 'Read'];
+  ReminderHistory.findOne = async () => currentRecord;
+  ReminderHistory.updateOne = async (query, setDoc) => {
+    updateCalled = true;
+    updatePayload = setDoc.$set;
+    unsetPayload = setDoc.$unset;
+  };
 
-  const currentStatus = 'Read';
-  const newStatus     = 'Delivered';
+  const reset = (status, fields = {}) => {
+    currentRecord = { wamid: 'wamid.123', status, ...fields };
+    updateCalled = false;
+    updatePayload = null;
+    unsetPayload = null;
+  };
 
-  const currentIdx = order.indexOf(currentStatus);
-  const newIdx     = order.indexOf(newStatus);
+  try {
+    // 1. Accepted -> Delivered: should advance and set deliveredAt
+    reset('Accepted');
+    await processStatusUpdate({ id: 'wamid.123', status: 'delivered', timestamp: '1700000000' });
+    assert.equal(updateCalled, true, 'Accepted must advance to Delivered');
+    assert.equal(updatePayload.status, 'Delivered');
+    assert.ok(updatePayload.deliveredAt instanceof Date);
 
-  // Delivered (4) < Read (5) → should NOT advance (idempotent skip)
-  assert.ok(newIdx < currentIdx, 'Delivered must not overwrite Read status');
-});
+    // 2. Delivered -> Read: should advance and set readAt
+    reset('Delivered', { deliveredAt: new Date(1700000000 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'read', timestamp: '1700000015' });
+    assert.equal(updateCalled, true, 'Delivered must advance to Read');
+    assert.equal(updatePayload.status, 'Read');
+    assert.ok(updatePayload.readAt instanceof Date);
 
-test('Webhook — Failed always advances regardless of current status', () => {
-  // Failed is special: allowed at any point
-  // The code uses: if (mapped !== 'Failed' && currentIdx >= newIdx) { return; }
-  // So Failed always goes through — verify that's the intent
-  const currentStatus = 'Read';
-  const mapped        = 'Failed';
-  const shouldSkip    = mapped !== 'Failed' && false; // currentIdx >= newIdx doesn't matter for Failed
-  assert.equal(shouldSkip, false, 'Failed must never be skipped');
+    // 3. Read-before-delivered: 'read' arrives before 'delivered'
+    // Starts at Accepted, receives 'read' first -> advances directly to Read
+    reset('Accepted');
+    await processStatusUpdate({ id: 'wamid.123', status: 'read', timestamp: '1700000010' });
+    assert.equal(updateCalled, true, 'Accepted advances directly to Read if read arrives first');
+    assert.equal(updatePayload.status, 'Read');
+    assert.ok(updatePayload.readAt instanceof Date);
+    assert.ok(updatePayload.deliveredAt instanceof Date, 'Read-first also initializes deliveredAt');
+
+    // 4. Delayed 'delivered' event arrives after message already at 'Read':
+    // If deliveredAt is not yet set, backfill deliveredAt without downgrading status
+    reset('Read', { readAt: new Date(1700000010 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'delivered', timestamp: '1700000005' });
+    assert.equal(updateCalled, true, 'Backfills deliveredAt if missing');
+    assert.equal(updatePayload.status, undefined, 'Must NOT downgrade status from Read');
+    assert.ok(updatePayload.deliveredAt instanceof Date);
+
+    // If deliveredAt was initialized to readAt (1700000010), later older delivered event (1700000005)
+    // corrects deliveredAt to the earlier delivery timestamp without downgrading status
+    reset('Read', {
+      readAt: new Date(1700000010 * 1000),
+      deliveredAt: new Date(1700000010 * 1000)
+    });
+    await processStatusUpdate({ id: 'wamid.123', status: 'delivered', timestamp: '1700000005' });
+    assert.equal(updateCalled, true, 'Older delivered event corrects deliveredAt on Read status');
+    assert.equal(updatePayload.status, undefined, 'Must NOT downgrade status from Read');
+    assert.equal(updatePayload.deliveredAt.getTime(), 1700000005 * 1000, 'deliveredAt corrected to older timestamp');
+
+    // If deliveredAt is already set to same or earlier timestamp, redundant delivered is a no-op
+    reset('Read', {
+      readAt: new Date(1700000010 * 1000),
+      deliveredAt: new Date(1700000005 * 1000)
+    });
+    await processStatusUpdate({ id: 'wamid.123', status: 'delivered', timestamp: '1700000005' });
+    assert.equal(updateCalled, false, 'Delayed delivered on already populated Read with same timestamp is a no-op');
+
+    // 5. Delayed failure event arriving after confirmed 'Delivered':
+    // Must NOT overwrite confirmed delivery
+    reset('Delivered', { deliveredAt: new Date(1700000010 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'failed', timestamp: '1700000005' });
+    assert.equal(updateCalled, false, 'Delayed/stale failure must not overwrite confirmed Delivered');
+
+    // 6. Delayed failure event arriving after confirmed 'Read':
+    // Must NOT overwrite confirmed read receipt
+    reset('Read', { readAt: new Date(1700000020 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'failed', timestamp: '1700000015' });
+    assert.equal(updateCalled, false, 'Delayed/stale failure must not overwrite confirmed Read');
+
+    // 7. Duplicate events (idempotency tests):
+    // Duplicate Delivered
+    reset('Delivered', { deliveredAt: new Date(1700000005 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'delivered', timestamp: '1700000005' });
+    assert.equal(updateCalled, false, 'Duplicate Delivered must not write to DB');
+
+    // Duplicate Read
+    reset('Read', { readAt: new Date(1700000010 * 1000), deliveredAt: new Date(1700000005 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'read', timestamp: '1700000010' });
+    assert.equal(updateCalled, false, 'Duplicate Read must not write to DB');
+
+    // Duplicate Failed
+    reset('Failed', { failedAt: new Date(1700000005 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'failed', timestamp: '1700000005' });
+    assert.equal(updateCalled, false, 'Duplicate Failed must not write to DB');
+
+    // Duplicate Accepted
+    reset('Accepted', { sentAt: new Date(1700000000 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'sent', timestamp: '1700000000' });
+    assert.equal(updateCalled, false, 'Duplicate Accepted must not write to DB');
+
+    // 8. Out-of-order timestamps:
+    // Stale delivery event older than failure timestamp
+    reset('Failed', { failedAt: new Date(1700000010 * 1000) });
+    await processStatusUpdate({ id: 'wamid.123', status: 'delivered', timestamp: '1700000005' });
+    assert.equal(updateCalled, false, 'Stale delivery event older than failure must be ignored');
+
+    // Newer delivery event after failure (Meta recovered on retry)
+    reset('Failed', {
+      failedAt: new Date(1700000010 * 1000),
+      metaError: '{"code":131026}',
+      errorDetails: 'undeliverable'
+    });
+    await processStatusUpdate({ id: 'wamid.123', status: 'delivered', timestamp: '1700000020' });
+    assert.equal(updateCalled, true, 'Newer delivery event after failure should advance state');
+    assert.equal(updatePayload.status, 'Delivered');
+    assert.ok(unsetPayload && unsetPayload.failedAt, 'Must unset failedAt when superseding failure');
+    assert.ok(unsetPayload && unsetPayload.metaError, 'Must unset metaError when superseding failure');
+    assert.ok(unsetPayload && unsetPayload.errorDetails, 'Must unset errorDetails when superseding failure');
+
+    // 9. Legitimate failure from Accepted
+    reset('Accepted');
+    await processStatusUpdate({
+      id: 'wamid.123',
+      status: 'failed',
+      timestamp: '1700000005',
+      errors: [{ code: 131026, message: 'Message undeliverable' }]
+    });
+    assert.equal(updateCalled, true, 'Accepted transitions to Failed on legitimate error');
+    assert.equal(updatePayload.status, 'Failed');
+    assert.ok(updatePayload.failedAt instanceof Date);
+    assert.ok(updatePayload.metaError.includes('131026'));
+  } finally {
+    ReminderHistory.findOne = origFindOne;
+    ReminderHistory.updateOne = origUpdateOne;
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -644,17 +845,10 @@ test('Bulk send — partial failure is correctly counted', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('Webhook — duplicate Delivered event does not re-apply same status', () => {
-  const order = ['Accepted', 'Pending', 'Sent', 'Failed', 'Delivered', 'Read'];
-
-  // Record already at Delivered — receives a second Delivered event
+  // Verified in processStatusUpdate tests: record.status === mapped skips update
   const currentStatus = 'Delivered';
   const mapped        = 'Delivered';
-
-  const currentIdx = order.indexOf(currentStatus);
-  const newIdx     = order.indexOf(mapped);
-
-  const shouldSkip = mapped !== 'Failed' && currentIdx >= newIdx;
-  assert.equal(shouldSkip, true, 'Duplicate Delivered event must be skipped (idempotent)');
+  assert.equal(currentStatus === mapped, true, 'Duplicate Delivered event must be skipped (idempotent)');
 });
 
 console.log('\n✅ All tests defined. Running with Node test runner...\n');

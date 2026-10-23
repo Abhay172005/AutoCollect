@@ -168,7 +168,7 @@ const Reminders = () => {
                           <td className="table-cell">{statusBadge(bill.status)}</td>
                           <td className="table-cell">
                             {bill.reminderSent ? (
-                              <span className="badge-success">Sent</span>
+                              <span className="badge-success" title="Reminder submitted; see Reminder History for delivery and read status">Sent</span>
                             ) : (
                               <span className="badge-gray">Not Sent</span>
                             )}

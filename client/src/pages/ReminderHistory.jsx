@@ -115,14 +115,16 @@ const ReminderHistory = () => {
                     </td>
                     <td className="table-cell">
                       <span className={
-                        r.status === 'Sent' || r.status === 'Accepted'
-                          ? 'badge-success'
+                        r.status === 'Accepted'
+                          ? 'badge-info'
                           : r.status === 'Delivered'
                           ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2.5 py-1 rounded-full text-xs font-semibold'
                           : r.status === 'Read'
                           ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 px-2.5 py-1 rounded-full text-xs font-semibold'
                           : r.status === 'Failed'
                           ? 'badge-danger'
+                          : r.status === 'Sent'
+                          ? 'badge-success'
                           : 'badge-warning'
                       }>
                         {r.status}

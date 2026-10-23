@@ -44,6 +44,18 @@ const normalisePhone = (raw) => {
   return null;
 };
 
+/**
+ * Convert a normalised E.164 phone number to Meta WhatsApp Cloud API recipient format
+ * (country code + subscriber digits without leading '+' or '00').
+ * E.g. "+919876543210" → "919876543210", "+12025550199" → "12025550199".
+ * @param {string} phone
+ * @returns {string}
+ */
+const toMetaRecipient = (phone) => {
+  if (!phone || typeof phone !== 'string') return '';
+  return phone.replace(/^\+/, '').replace(/^00/, '');
+};
+
 // ─────────────────────────────────────────────
 //  Meta Cloud API configuration check
 // ─────────────────────────────────────────────
@@ -89,7 +101,7 @@ const getMetaConfig = () => {
  *   {{4}} → dueDate (formatted)
  *
  * @param {object} bill  — Mongoose Bill document
- * @param {string} toPhone — normalised E.164 phone number
+ * @param {string} toPhone — normalised E.164 phone number (+91XXXXXXXXXX)
  * @returns {{ wamid: string|null, error: string|null }}
  */
 const sendMetaTemplateMessage = async (bill, toPhone) => {
@@ -114,9 +126,11 @@ const sendMetaTemplateMessage = async (bill, toPhone) => {
     ? new Date(bill.dueDate).toLocaleDateString('en-IN')
     : 'N/A';
 
+  const recipient = toMetaRecipient(toPhone);
+
   const payload = {
     messaging_product: 'whatsapp',
-    to: toPhone,
+    to: recipient,
     type: 'template',
     template: {
       name: config.templateName,
@@ -263,7 +277,10 @@ const sendReminder = async (billId, reminderType = 'WhatsApp', merchantId) => {
     sentAt:        new Date()
   });
 
-  // Update bill only after Meta accepted the message
+  // Update bill only after Meta accepted the message for delivery.
+  // Semantics: bill.reminderSent indicates that a reminder was dispatched/submitted
+  // to Meta WhatsApp Cloud API for this bill. Confirmed delivery, read receipts, and
+  // terminal delivery failures are tracked per-reminder in ReminderHistory via webhooks.
   if (isSuccess) {
     bill.reminderSent    = true;
     bill.lastReminderDate = new Date();
@@ -307,7 +324,9 @@ const sendBulkReminders = async (billIds, reminderType = 'WhatsApp', merchantId)
 
 module.exports = {
   normalisePhone,
+  toMetaRecipient,
   getMetaConfig,
+  sendMetaTemplateMessage,
   generateReminderMessage,
   sendReminder,
   sendBulkReminders

@@ -35,11 +35,17 @@ const reminderHistorySchema = new mongoose.Schema({
     default: 'WhatsApp'
   },
 
-  // ── Status ────────────────────────────────────────────────────────────────
-  // 'Sent' is kept for backward-compatibility with pre-migration records.
-  // New records use 'Accepted' (Meta accepted the send request),
-  // 'Delivered', 'Read', and 'Failed'.
-  // 'Pending' is retained for any future queued-send flows.
+  // ── Status Lifecycle ──────────────────────────────────────────────────────
+  // 'Accepted'  — Meta Cloud API accepted the reminder for delivery (HTTP 200 with wamid);
+  //               Meta webhook 'sent' also maps to 'Accepted' (server queue/dispatch).
+  //               API acceptance indicates submission and is distinct from confirmed delivery.
+  // 'Delivered' — Webhook confirmed message reached recipient handset (sets deliveredAt).
+  // 'Read'      — Webhook confirmed message was opened by recipient (sets readAt).
+  // 'Failed'    — API rejection or webhook delivery failure (sets failedAt + metaError).
+  //
+  // Legacy / compatibility statuses:
+  // 'Sent'      — Retained for historical pre-migration records sent via former provider.
+  // 'Pending'   — Retained for any future asynchronous queueing flows.
   status: {
     type: String,
     enum: ['Sent', 'Accepted', 'Pending', 'Delivered', 'Read', 'Failed'],
